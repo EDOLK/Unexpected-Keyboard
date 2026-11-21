@@ -262,7 +262,8 @@ public class Keyboard2 extends InputMethodService
   @Override
   public void onStartInputView(EditorInfo info, boolean restarting)
   {
-    _config.editor_config.refresh(info, getResources());
+    _config.editor_config.refresh(info, getResources(),
+        _config.suggestions_ignore_editor_request);
     refresh_config();
     _currentSpecialLayout = refresh_special_layout();
     _keyboard_layout_view.setKeyboard(current_layout());
