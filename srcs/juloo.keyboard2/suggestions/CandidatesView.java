@@ -188,8 +188,12 @@ public class CandidatesView extends LinearLayout
         });
   }
 
-  /** Whether the candidates view should be shown for a given editor. */
-  public static boolean should_show(EditorInfo info)
+  /** Whether the candidates view should be shown for a given editor.
+      [ignore_no_suggestions] makes the [NO_SUGGESTIONS] flag ignored, which
+      some editors set even though suggestions are useful, for example the
+      Google search bar. Password fields never show suggestions. */
+  public static boolean should_show(EditorInfo info,
+      boolean ignore_no_suggestions)
   {
     int variation = info.inputType & InputType.TYPE_MASK_VARIATION;
     int flags = info.inputType & InputType.TYPE_MASK_FLAGS;
@@ -206,8 +210,8 @@ public class CandidatesView extends LinearLayout
             /* Editor requested that we don't show suggestions. Enable
                suggestions anyway when the flags [NO_SUGGESTIONS] and
                [AUTO_CORRECT] are present at the same time. This happens with
-               Google Keep. */
-            if ((flags &
+               Google Keep. The user can also choose to ignore the request. */
+            if (!ignore_no_suggestions && (flags &
                   (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                    | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT))
                 == InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
