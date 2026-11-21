@@ -30,6 +30,11 @@ public final class EditorConfig
   // Whether caps state should be updated right away.
   public boolean caps_initially_updated = false;
 
+  /** Whether a space can be automatically inserted after punctuation. This is
+      disabled in fields where it would get in the way, like URLs, emails and
+      passwords. */
+  public boolean auto_space_allowed = false;
+
   /** CurrentlyTypedWord. */
   public CharSequence initial_text_before_cursor = null; // Might be [null].
   public CharSequence initial_text_after_cursor = null; // Might be [null].
@@ -94,6 +99,8 @@ public final class EditorConfig
     caps_mode = info.inputType & TextUtils.CAP_MODE_SENTENCES;
     caps_initially_enabled = (info.initialCapsMode != 0);
     caps_initially_updated = caps_should_update_state(info);
+    /* Auto space after punctuation */
+    auto_space_allowed = auto_space_should_be_allowed(info);
     /* CurrentlyTypedWord */
     if (VERSION.SDK_INT >= 30)
     {
@@ -133,6 +140,32 @@ public final class EditorConfig
       return true;
     // Godot editor: Doesn't handle setSelection() but returns true.
     return info.packageName.startsWith("org.godotengine.editor");
+  }
+
+  /** Whether a space can be automatically inserted after punctuation. */
+  boolean auto_space_should_be_allowed(EditorInfo info)
+  {
+    int class_ = info.inputType & InputType.TYPE_MASK_CLASS;
+    int variation = info.inputType & InputType.TYPE_MASK_VARIATION;
+    if (class_ != InputType.TYPE_CLASS_TEXT)
+      return false;
+    // Browser address bars use the "Go" action, even those that don't set the
+    // URI variation.
+    if ((info.imeOptions & EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO)
+      return false;
+    switch (variation)
+    {
+      case InputType.TYPE_TEXT_VARIATION_URI:
+      case InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS:
+      case InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS:
+      case InputType.TYPE_TEXT_VARIATION_PASSWORD:
+      case InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD:
+      case InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:
+      case InputType.TYPE_TEXT_VARIATION_FILTER:
+        return false;
+      default:
+        return true;
+    }
   }
 
   /** Whether the caps state should be updated when input starts. [inputType]

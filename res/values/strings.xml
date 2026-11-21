@@ -53,6 +53,8 @@
     <string name="pref_category_behavior">Behavior</string>
     <string name="pref_autocapitalisation_title">Automatic capitalisation</string>
     <string name="pref_autocapitalisation_summary">Press Shift at the beginning of a sentence</string>
+    <string name="pref_auto_space_after_punctuation_title">Space after punctuation</string>
+    <string name="pref_auto_space_after_punctuation_summary">Automatically add a space after typing . , ! ? ; : at the end of a word</string>
     <string name="pref_change_method_key_replacement_title">Switching between input methods</string>
     <string name="pref_change_method_key_replacement_e_picker">Show the input method picker (long press)</string>
     <string name="pref_change_method_key_replacement_e_prev">Switch to last used</string>

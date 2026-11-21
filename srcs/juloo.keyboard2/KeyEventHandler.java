@@ -109,7 +109,7 @@ public final class KeyEventHandler
     update_meta_state(mods);
     switch (key.getKind())
     {
-      case Char: send_text(String.valueOf(key.getChar())); break;
+      case Char: handle_char(key.getChar()); break;
       case String: send_text(key.getString()); break;
       case Event: _recv.handle_event_key(key.getEvent()); break;
       case Keyevent: send_key_down_up(key.getKeyevent()); break;
@@ -145,6 +145,7 @@ public final class KeyEventHandler
     replace_surrounding_text(old.length() + cur_rel, -cur_rel, text);
     last_replaced_word = old;
     last_replacement_word_len = text.length();
+    last_suggestion_added_space = add_space_after;
     _next_last_action = LastAction.SUGGESTION_ENTERED;
   }
 
@@ -550,10 +551,121 @@ public final class KeyEventHandler
   /** Length of the text before the cursor that should be replaced by
       backspace. */
   int last_replacement_word_len = 0;
+  /** Whether a space was added after the last entered suggestion. */
+  boolean last_suggestion_added_space = false;
+
+  /** Type a character, automatically adding a space after punctuation if
+      enabled in the settings. */
+  void handle_char(char c)
+  {
+    if (_config.auto_space_after_punctuation
+        && _config.editor_config.auto_space_allowed
+        && !_typedword.is_selection_not_empty())
+    {
+      // A space was just inserted automatically and the user types more
+      // punctuation or a closing bracket: "word. " + '?' => "word.? "
+      boolean space_was_added =
+        _last_action == LastAction.AUTO_SPACE
+        || (_last_action == LastAction.SUGGESTION_ENTERED
+            && last_suggestion_added_space);
+      if (space_was_added
+          && (is_auto_space_punctuation(c) || is_closing_punctuation(c)))
+      {
+        replace_auto_space(c + " ");
+        _next_last_action = LastAction.AUTO_SPACE;
+        return;
+      }
+      if (is_auto_space_punctuation(c) && cursor_is_after_letter()
+          && !text_before_cursor_looks_like_url())
+      {
+        send_text(c + " ");
+        _next_last_action = LastAction.AUTO_SPACE;
+        return;
+      }
+    }
+    send_text(String.valueOf(c));
+  }
+
+  /** Characters after which a space is automatically inserted. */
+  static boolean is_auto_space_punctuation(char c)
+  {
+    switch (c)
+    {
+      case '.': case ',': case '!': case '?': case ';': case ':':
+      case '\u2026': // Ellipsis
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /** Characters that go before the automatically inserted space. Straight
+      quotes are excluded as they are ambiguous. */
+  static boolean is_closing_punctuation(char c)
+  {
+    switch (c)
+    {
+      case ')': case ']': case '}':
+      case '\u201D': case '\u2019': case '\u00BB':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /** Whether the cursor is at the end of a word that ends with a letter. This
+      avoids inserting a space in numbers like "3.5" or "12:30" and in the
+      middle of words. */
+  boolean cursor_is_after_letter()
+  {
+    String w = _typedword.get();
+    if (w.length() == 0 || _typedword.cursor_relative() != 0)
+      return false;
+    return Character.isLetter(w.codePointBefore(w.length()));
+  }
+
+  /** Whether the text typed since the last whitespace looks like a URL or an
+      email address, for example "https://example" or "www.example". This
+      catches URLs typed in fields that are not marked as URL fields. */
+  boolean text_before_cursor_looks_like_url()
+  {
+    InputConnection conn = _recv.getCurrentInputConnection();
+    if (conn == null)
+      return false;
+    CharSequence before = conn.getTextBeforeCursor(64, 0);
+    if (before == null)
+      return false;
+    int start = before.length();
+    while (start > 0 && !Character.isWhitespace(before.charAt(start - 1)))
+      start--;
+    String token = before.subSequence(start, before.length()).toString()
+      .toLowerCase();
+    return token.contains("://") || token.startsWith("www.")
+      || token.indexOf('@') >= 0;
+  }
+
+  /** Remove the automatically inserted space before the cursor and type
+      [text]. */
+  void replace_auto_space(String text)
+  {
+    InputConnection conn = _recv.getCurrentInputConnection();
+    if (conn == null)
+      return;
+    conn.beginBatchEdit();
+    conn.deleteSurroundingText(1, 0);
+    _typedword.remove_surrounding_text(1, 0);
+    _autocap.removed_before_cursor(1);
+    send_text(text);
+    conn.endBatchEdit();
+  }
 
   /** Implement autocorrect when enabled in the settings. */
   void handle_space_bar()
   {
+    // A space was just inserted automatically after punctuation, don't insert
+    // a second one.
+    if (_last_action == LastAction.AUTO_SPACE)
+      return;
     if (_config.space_bar_auto_complete && _suggestions.count > 0
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0
@@ -612,6 +724,8 @@ public final class KeyEventHandler
   {
     SUGGESTION_ENTERED,
     SUGGESTION_UNDO,
+    /** A space was automatically inserted after punctuation. */
+    AUTO_SPACE,
     OTHER
   }
 }
