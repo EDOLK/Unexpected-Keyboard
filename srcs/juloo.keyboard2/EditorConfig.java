@@ -149,6 +149,10 @@ public final class EditorConfig
     int variation = info.inputType & InputType.TYPE_MASK_VARIATION;
     if (class_ != InputType.TYPE_CLASS_TEXT)
       return false;
+    // Browser address bars use the "Go" action, even those that don't set the
+    // URI variation.
+    if ((info.imeOptions & EditorInfo.IME_MASK_ACTION) == EditorInfo.IME_ACTION_GO)
+      return false;
     switch (variation)
     {
       case InputType.TYPE_TEXT_VARIATION_URI:

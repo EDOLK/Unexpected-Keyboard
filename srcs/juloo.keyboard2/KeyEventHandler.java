@@ -575,7 +575,8 @@ public final class KeyEventHandler
         _next_last_action = LastAction.AUTO_SPACE;
         return;
       }
-      if (is_auto_space_punctuation(c) && cursor_is_after_letter())
+      if (is_auto_space_punctuation(c) && cursor_is_after_letter()
+          && !text_before_cursor_looks_like_url())
       {
         send_text(c + " ");
         _next_last_action = LastAction.AUTO_SPACE;
@@ -621,6 +622,26 @@ public final class KeyEventHandler
     if (w.length() == 0 || _typedword.cursor_relative() != 0)
       return false;
     return Character.isLetter(w.codePointBefore(w.length()));
+  }
+
+  /** Whether the text typed since the last whitespace looks like a URL or an
+      email address, for example "https://example" or "www.example". This
+      catches URLs typed in fields that are not marked as URL fields. */
+  boolean text_before_cursor_looks_like_url()
+  {
+    InputConnection conn = _recv.getCurrentInputConnection();
+    if (conn == null)
+      return false;
+    CharSequence before = conn.getTextBeforeCursor(64, 0);
+    if (before == null)
+      return false;
+    int start = before.length();
+    while (start > 0 && !Character.isWhitespace(before.charAt(start - 1)))
+      start--;
+    String token = before.subSequence(start, before.length()).toString()
+      .toLowerCase();
+    return token.contains("://") || token.startsWith("www.")
+      || token.indexOf('@') >= 0;
   }
 
   /** Remove the automatically inserted space before the cursor and type
