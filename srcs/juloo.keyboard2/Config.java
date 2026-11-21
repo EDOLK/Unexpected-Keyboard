@@ -71,6 +71,7 @@ public final class Config
   public float characterSize; // Ratio
   public int theme; // Values are R.style.*
   public boolean autocapitalisation;
+  public boolean auto_space_after_punctuation;
   public KeyValue change_method_key_replacement;
   public NumberLayout selected_number_layout;
   public boolean borderConfig;
@@ -196,6 +197,7 @@ public final class Config
       * characterSizeScale;
     theme = getThemeId(res, _prefs.getString("theme", ""));
     autocapitalisation = _prefs.getBoolean("autocapitalisation", true);
+    auto_space_after_punctuation = _prefs.getBoolean("auto_space_after_punctuation", false);
     change_method_key_replacement = get_change_method_key_replacement(_prefs);
     extra_keys_param = ExtraKeysPreference.get_extra_keys(_prefs);
     extra_keys_custom = CustomExtraKeysPreference.get(_prefs);
