@@ -80,6 +80,12 @@ public final class Autocapitalisation
     callback(true);
   }
 
+  /** Text has been removed before the cursor by the keyboard. */
+  public void removed_before_cursor(int n)
+  {
+    _cursor = Math.max(_cursor - n, 0);
+  }
+
   public void stop()
   {
     _should_enable_shift = false;
