@@ -109,7 +109,7 @@ public final class KeyEventHandler
     update_meta_state(mods);
     switch (key.getKind())
     {
-      case Char: send_text(String.valueOf(key.getChar())); break;
+      case Char: send_char(key.getChar()); break;
       case String: send_text(key.getString()); break;
       case Event: _recv.handle_event_key(key.getEvent()); break;
       case Keyevent: send_key_down_up(key.getKeyevent()); break;
@@ -266,6 +266,115 @@ public final class KeyEventHandler
     _autocap.typed(text);
     _typedword.typed(text);
     conn.commitText(text, 1);
+  }
+
+  /** Type a single character, handling the auto-close pairs option. */
+  void send_char(char c)
+  {
+    if (!auto_close_pairs_enabled()
+        || (AutoClosePairs.closing_of(c) == 0 && !AutoClosePairs.is_closing(c)))
+    {
+      send_text(String.valueOf(c));
+      return;
+    }
+    InputConnection conn = _recv.getCurrentInputConnection();
+    if (conn == null)
+      return;
+    char close = AutoClosePairs.closing_of(c);
+    if (close != 0 && _typedword.is_selection_not_empty())
+    {
+      // Surround the selection with the pair.
+      CharSequence sel = conn.getSelectedText(0);
+      if (sel != null && sel.length() > 0)
+      {
+        send_text(c + sel.toString() + close);
+        return;
+      }
+    }
+    char before = char_at_end(conn.getTextBeforeCursor(1, 0));
+    char after = char_at_start(conn.getTextAfterCursor(1, 0));
+    if (AutoClosePairs.should_overtype(c, after))
+    {
+      _autocap.typed(String.valueOf(c));
+      move_cursor_right_no_mods(conn);
+    }
+    else if (AutoClosePairs.should_close(c, before, after))
+      send_pair(conn, c, close);
+    else
+      send_text(String.valueOf(c));
+  }
+
+  /** Whether the auto-close pairs option applies to the current key press.
+      It's disabled while system modifiers are pressed. */
+  boolean auto_close_pairs_enabled()
+  {
+    final int system_mods =
+      KeyEvent.META_CTRL_ON | KeyEvent.META_ALT_ON | KeyEvent.META_META_ON;
+    return _config.auto_close_pairs && (_meta_state & system_mods) == 0;
+  }
+
+  /** Insert [open] and [close] and place the cursor between them. */
+  void send_pair(InputConnection conn, char open, char close)
+  {
+    String open_s = String.valueOf(open);
+    _autocap.typed(open_s);
+    _typedword.typed(open_s);
+    if (_move_cursor_force_fallback)
+    {
+      // The editor might not handle the cursor position passed to
+      // [commitText], move it with a key event instead.
+      conn.commitText(open_s + close, 1);
+      send_key_down_up(KeyEvent.KEYCODE_DPAD_LEFT, 0);
+      return;
+    }
+    conn.beginBatchEdit();
+    conn.commitText(open_s, 1);
+    // A cursor position of [0] places the cursor before the inserted text.
+    conn.commitText(String.valueOf(close), 0);
+    conn.endBatchEdit();
+  }
+
+  void move_cursor_right_no_mods(InputConnection conn)
+  {
+    if (!_move_cursor_force_fallback)
+    {
+      ExtractedText et = get_cursor_pos(conn);
+      if (et != null && et.selectionStart == et.selectionEnd)
+      {
+        int pos = et.selectionStart + 1;
+        if (conn.setSelection(pos, pos))
+          return;
+      }
+    }
+    send_key_down_up(KeyEvent.KEYCODE_DPAD_RIGHT, 0);
+  }
+
+  /** Delete an empty pair around the cursor. Returns [false] if there's no
+      such pair. */
+  boolean delete_auto_closed_pair()
+  {
+    if (!auto_close_pairs_enabled() || _typedword.is_selection_not_empty())
+      return false;
+    InputConnection conn = _recv.getCurrentInputConnection();
+    if (conn == null)
+      return false;
+    char before = char_at_end(conn.getTextBeforeCursor(1, 0));
+    char after = char_at_start(conn.getTextAfterCursor(1, 0));
+    if (!AutoClosePairs.should_delete_pair(before, after))
+      return false;
+    conn.deleteSurroundingText(1, 1);
+    _typedword.remove_surrounding_text(1, 1);
+    return true;
+  }
+
+  static char char_at_start(CharSequence s)
+  {
+    return (s == null || s.length() == 0) ? 0 : s.charAt(0);
+  }
+
+  static char char_at_end(CharSequence s)
+  {
+    return (s == null || s.length() == 0) ? 0 : s.charAt(s.length() - 1);
   }
 
   void replace_surrounding_text(int remove_before, int remove_after,
@@ -580,7 +689,7 @@ public final class KeyEventHandler
       last_replaced_word = null;
       _next_last_action = LastAction.SUGGESTION_UNDO;
     }
-    else
+    else if (!delete_auto_closed_pair())
     {
       send_key_down_up(KeyEvent.KEYCODE_DEL);
     }
