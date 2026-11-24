@@ -5,11 +5,13 @@ import android.os.Build.VERSION;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.TypedValue;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +44,9 @@ public class CandidatesView extends LinearLayout
 
   TextView _lang_name_view;
 
+  /** Last suggestions passed to [set_candidates]. Might be [null]. */
+  Suggestions _suggestions = null;
+
   public CandidatesView(Context context, AttributeSet attrs)
   {
     super(context, attrs);
@@ -61,6 +66,7 @@ public class CandidatesView extends LinearLayout
 
   public void set_candidates(Suggestions s)
   {
+    _suggestions = s;
     int s_count = s.count;
     for (int i = 0; i < Suggestions.MAX_COUNT; i++)
       _items[i] = (i < s_count) ? s.suggestions[i] : null;
@@ -169,8 +175,36 @@ public class CandidatesView extends LinearLayout
               Config.globalConfig().handler.suggestion_entered(it);
           }
         });
+    // Long press adds the word being typed to the user dictionary or removes
+    // a user word. Not for the emoji suggestion.
+    if (item_index < Suggestions.MAX_COUNT)
+      v.setOnLongClickListener(new View.OnLongClickListener()
+          {
+            @Override
+            public boolean onLongClick(View v)
+            {
+              return on_item_long_click(v, _items[item_index]);
+            }
+          });
     v.setVisibility(View.GONE);
     _item_views[item_index] = v;
+  }
+
+  boolean on_item_long_click(View v, String word)
+  {
+    if (word == null || _suggestions == null)
+      return false;
+    int msg;
+    switch (_suggestions.toggle_user_word(word))
+    {
+      case ADDED: msg = R.string.user_dictionary_word_added; break;
+      case REMOVED: msg = R.string.user_dictionary_word_removed; break;
+      default: return false;
+    }
+    v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+    Toast.makeText(getContext(), getResources().getString(msg, word),
+        Toast.LENGTH_SHORT).show();
+    return true;
   }
 
   void setup_dictionary_switch_button()

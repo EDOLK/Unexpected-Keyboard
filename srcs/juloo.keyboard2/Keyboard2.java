@@ -28,6 +28,7 @@ import java.util.Set;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.dict.DictionariesActivity;
+import juloo.keyboard2.dict.UserDictionary;
 import juloo.keyboard2.dict.DictionarySwitcher;
 import juloo.keyboard2.prefs.LayoutsPreference;
 import juloo.keyboard2.suggestions.CandidatesView;
@@ -138,7 +139,8 @@ public class Keyboard2 extends InputMethodService
         _foldStateTracker.isUnfolded(), _dictionaries);
     _config = Config.globalConfig();
     Receiver recvr = this.new Receiver();
-    _suggestions = new Suggestions(recvr, _config);
+    _suggestions = new Suggestions(recvr, _config,
+        UserDictionary.instance(this));
     _keyeventhandler = new KeyEventHandler(_config, recvr, _suggestions);
     KeyValue.Stateful._handler = recvr;
     _config.handler = _keyeventhandler;
