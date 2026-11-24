@@ -5,13 +5,11 @@ import android.os.Build.VERSION;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.TypedValue;
-import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -19,6 +17,7 @@ import juloo.keyboard2.Config;
 import juloo.keyboard2.KeyValue;
 import juloo.keyboard2.Pointers;
 import juloo.keyboard2.R;
+import juloo.keyboard2.VibratorCompat;
 import juloo.keyboard2.dict.SupportedDictionaries;
 
 public class CandidatesView extends LinearLayout
@@ -47,6 +46,15 @@ public class CandidatesView extends LinearLayout
   /** Last suggestions passed to [set_candidates]. Might be [null]. */
   Suggestions _suggestions = null;
 
+  /** Confirmation shown in place of the candidates for a short time after a
+      word is added to or removed from the user dictionary. */
+  TextView _feedback_view;
+  final Runnable _hide_feedback = new Runnable()
+    {
+      public void run() { hide_feedback(); }
+    };
+  static final long FEEDBACK_DURATION_MS = 1500;
+
   public CandidatesView(Context context, AttributeSet attrs)
   {
     super(context, attrs);
@@ -62,11 +70,15 @@ public class CandidatesView extends LinearLayout
     setup_item_view(3, R.id.candidates_emoji);
     setup_dictionary_switch_button();
     _lang_name_view = (TextView)findViewById(R.id.candidates_lang_name);
+    _feedback_view = (TextView)findViewById(R.id.candidates_feedback);
   }
 
   public void set_candidates(Suggestions s)
   {
     _suggestions = s;
+    // New suggestions replace the feedback message, the user kept typing.
+    removeCallbacks(_hide_feedback);
+    _feedback_view.setVisibility(View.GONE);
     int s_count = s.count;
     for (int i = 0; i < Suggestions.MAX_COUNT; i++)
       _items[i] = (i < s_count) ? s.suggestions[i] : null;
@@ -95,6 +107,8 @@ public class CandidatesView extends LinearLayout
 
   void clear_candidates()
   {
+    removeCallbacks(_hide_feedback);
+    _feedback_view.setVisibility(View.GONE);
     for (int i = 0; i < _item_views.length; i++)
     {
       _items[i] = null;
@@ -142,6 +156,7 @@ public class CandidatesView extends LinearLayout
         v.setAutoSizeTextTypeUniformWithConfiguration(
             (int)(text_size / 2.), (int)text_size, 1, TypedValue.COMPLEX_UNIT_PX);
     }
+    _feedback_view.setTextSize(TypedValue.COMPLEX_UNIT_PX, text_size * 0.8f);
   }
 
   void inflate_status_no_dict(Config config)
@@ -186,6 +201,9 @@ public class CandidatesView extends LinearLayout
               return on_item_long_click(v, _items[item_index]);
             }
           });
+    // Vibration is done by [on_item_long_click] following the keyboard's
+    // settings.
+    v.setHapticFeedbackEnabled(false);
     v.setVisibility(View.GONE);
     _item_views[item_index] = v;
   }
@@ -201,10 +219,31 @@ public class CandidatesView extends LinearLayout
       case REMOVED: msg = R.string.user_dictionary_word_removed; break;
       default: return false;
     }
-    v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-    Toast.makeText(getContext(), getResources().getString(msg, word),
-        Toast.LENGTH_SHORT).show();
+    VibratorCompat.vibrate(v, Config.globalConfig(), VibratorCompat.Mode.TAP);
+    show_feedback(getResources().getString(msg, word));
     return true;
+  }
+
+  /** Show [msg] in place of the candidates for [FEEDBACK_DURATION_MS]. */
+  void show_feedback(String msg)
+  {
+    for (TextView v : _item_views)
+      v.setVisibility(View.GONE);
+    if (_status_no_dict != null)
+      _status_no_dict.setVisibility(View.GONE);
+    _dictionary_switch_button.setVisibility(View.GONE);
+    _lang_name_view.setVisibility(View.GONE);
+    _feedback_view.setText(msg);
+    _feedback_view.setVisibility(View.VISIBLE);
+    removeCallbacks(_hide_feedback);
+    postDelayed(_hide_feedback, FEEDBACK_DURATION_MS);
+  }
+
+  void hide_feedback()
+  {
+    _feedback_view.setVisibility(View.GONE);
+    if (_suggestions != null)
+      set_candidates(_suggestions);
   }
 
   void setup_dictionary_switch_button()

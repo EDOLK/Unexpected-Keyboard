@@ -172,8 +172,8 @@
     <string name="dictionaries_download_failed">Download failed: Please allow internet access</string>
     <string name="candidates_status_click_to_install">Click to install a dictionary for %s</string>
     <string name="dictionary_switcher_title">Change language</string>
-    <string name="user_dictionary_word_added">\"%s\" added to your dictionary</string>
-    <string name="user_dictionary_word_removed">\"%s\" removed from your dictionary</string>
+    <string name="user_dictionary_word_added">✓ Added \"%s\" to your words</string>
+    <string name="user_dictionary_word_removed">Removed \"%s\" from your words</string>
     <string name="user_dictionary_title">Your words</string>
     <string name="user_dictionary_description">Your words are suggested before the words of the dictionary. While typing, long press an unknown word in the suggestions to add it, or long press one of your words to remove it.</string>
     <string name="user_dictionary_input_hint">Add a word</string>
