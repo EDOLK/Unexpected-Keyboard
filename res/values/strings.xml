@@ -174,6 +174,13 @@
     <string name="dictionary_switcher_title">Change language</string>
     <string name="user_dictionary_word_added">\"%s\" added to your dictionary</string>
     <string name="user_dictionary_word_removed">\"%s\" removed from your dictionary</string>
+    <string name="user_dictionary_title">Your words</string>
+    <string name="user_dictionary_description">Your words are suggested before the words of the dictionary. While typing, long press an unknown word in the suggestions to add it, or long press one of your words to remove it.</string>
+    <string name="user_dictionary_input_hint">Add a word</string>
+    <string name="user_dictionary_add">Add</string>
+    <string name="user_dictionary_remove">Remove %s</string>
+    <string name="user_dictionary_empty">No words yet</string>
+    <string name="user_dictionary_no_spaces">A word can\'t contain spaces</string>
     <string name="pref_physical_keyboard_behavior">When a physical keyboard is connected</string>
     <string name="pref_physical_keyboard_behavior_hide">Hide everything</string>
     <string name="pref_physical_keyboard_behavior_show">Show everything</string>

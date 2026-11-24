@@ -162,6 +162,14 @@
     <item name="android:padding">8dp</item>
     <item name="android:scaleType">fitCenter</item>
   </style>
+  <!-- User dictionary activity -->
+  <style name="user_dictionary_input_row">
+    <item name="android:orientation">horizontal</item>
+    <item name="android:layout_width">fill_parent</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:gravity">center_vertical</item>
+    <item name="android:paddingHorizontal">48dp</item>
+  </style>
   <style name="appTheme" parent="@android:style/Theme.DeviceDefault.DayNight"/>
   <style name="settingsTheme" parent="appTheme">
     <!-- Setting this in the activity theme so it propagate to nested

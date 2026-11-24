@@ -53,6 +53,14 @@ public final class UserDictionary
     return res;
   }
 
+  /** Every word in alphabetical order, ignoring case. */
+  public List<String> get_all()
+  {
+    if (!ensure_loaded())
+      return new ArrayList<String>();
+    return new ArrayList<String>(_words.values());
+  }
+
   /** Returns [false] if the dictionary couldn't be loaded. */
   public boolean add(String word)
   {

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true" android:fitsSystemWindows="true">
+  <LinearLayout android:layout_width="fill_parent" android:layout_height="wrap_content" android:orientation="vertical">
+    <TextView style="@style/paragraph" android:text="@string/user_dictionary_description"/>
+    <LinearLayout style="@style/user_dictionary_input_row">
+      <EditText android:id="@+id/user_dictionary_input" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="@string/user_dictionary_input_hint" android:inputType="text" android:imeOptions="actionDone" android:importantForAutofill="no" android:singleLine="true"/>
+      <Button android:id="@+id/user_dictionary_add" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/user_dictionary_add"/>
+    </LinearLayout>
+    <TextView android:id="@+id/user_dictionary_empty" style="@style/paragraph" android:text="@string/user_dictionary_empty"/>
+    <LinearLayout android:id="@+id/user_dictionary_list" style="@style/dictionary_list_view" android:orientation="vertical"/>
+  </LinearLayout>
+</ScrollView>
