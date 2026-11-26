@@ -64,9 +64,19 @@ public class Eval
   }
 
   static Bigrams bigrams = null;
+  /** When not [null], learned pairs are merged with [bigrams]. */
+  static juloo.keyboard2.dict.UserBigrams learned = null;
 
   /** Pairs of (previous word, word) from running text, within sentences. */
   static List<String[]> corpus_pairs(String[] files) throws IOException
+  {
+    List<String[]> pairs = ordered_pairs(files);
+    Collections.shuffle(pairs, new Random(3));
+    return pairs.subList(0, Math.min(pairs.size(), 20000));
+  }
+
+  /** In the order of the text. */
+  static List<String[]> ordered_pairs(String[] files) throws IOException
   {
     List<String[]> pairs = new ArrayList<String[]>();
     for (String f : files)
@@ -85,8 +95,37 @@ public class Eval
         }
       }
     }
-    Collections.shuffle(pairs, new Random(3));
-    return pairs.subList(0, Math.min(pairs.size(), 20000));
+    return pairs;
+  }
+
+  static final class MemStorage implements juloo.keyboard2.dict.UserBigrams.Storage
+  {
+    String data = null;
+    public String read() { return data; }
+    public void write(String d) { data = d; }
+  }
+
+  /** Learn from the first 60% of a book and evaluate on the rest. */
+  static void learning_eval(String book) throws IOException
+  {
+    List<String[]> pairs = ordered_pairs(new String[]{ book });
+    int split = pairs.size() * 6 / 10;
+    juloo.keyboard2.dict.UserBigrams ub =
+      new juloo.keyboard2.dict.UserBigrams(new MemStorage());
+    for (String[] p : pairs.subList(0, split))
+      ub.learn(p[0], p[1]);
+    List<String[]> test = new ArrayList<String[]>(pairs.subList(split, pairs.size()));
+    Collections.shuffle(test, new Random(3));
+    test = test.subList(0, Math.min(test.size(), 20000));
+    System.out.printf("Learned %d pairs (%d kept) from the first 60%% of %s, testing on the rest.%n",
+        split, ub.size(), Paths.get(book).getFileName());
+    System.out.println("Word pairs file only (without -> with context):");
+    learned = null;
+    context_eval(test);
+    System.out.println("Word pairs file + learned pairs (without -> with context):");
+    learned = ub;
+    context_eval(test);
+    learned = null;
   }
 
   static void context_eval(List<String[]> pairs)
@@ -97,7 +136,7 @@ public class Eval
       for (String[] p : pairs)
       {
         n++;
-        Candidates c = CdictEngine.predict(bigrams.successors(p[0]), 3);
+        Candidates c = CdictEngine.predict(succ_of(p[0]), 3);
         int r = rank(Arrays.copyOf(c.words, c.count), p[1]);
         if (r == 0) top1++; if (r >= 0) top3++;
       }
@@ -114,7 +153,7 @@ public class Eval
         n++;
         String typed = p[1].substring(0, k);
         int ro = rank(new_query(typed, 3), p[1]);
-        int rn = rank(new_query(bigrams.successors(p[0]), typed, 3), p[1]);
+        int rn = rank(new_query(succ_of(p[0]), typed, 3), p[1]);
         if (ro == 0) o[0]++; if (ro >= 0) o[1]++;
         if (rn == 0) nw[0]++; if (rn >= 0) nw[1]++;
       }
@@ -129,11 +168,18 @@ public class Eval
       if (typed.equals(p[1]) || typed.length() < 2 || valid(typed)) continue;
       n++;
       int ro = rank(new_query(typed, 3), p[1]);
-      int rn = rank(new_query(bigrams.successors(p[0]), typed, 3), p[1]);
+      int rn = rank(new_query(succ_of(p[0]), typed, 3), p[1]);
       if (ro == 0) o[0]++; if (ro >= 0) o[1]++;
       if (rn == 0) nw[0]++; if (rn >= 0) nw[1]++;
     }
     print("typos (sigma=0.35), +context", n, o, nw);
+  }
+
+  static Bigrams.Successors succ_of(String prev)
+  {
+    String[] ctx = new String[]{ prev };
+    return (learned == null) ? CdictEngine.successors(bigrams, ctx)
+      : learned.merge(bigrams, prev);
   }
 
   static void print(String name, int n, int[] o, int[] nw)
@@ -299,6 +345,7 @@ public class Eval
     {
       System.out.println("With word pairs, on running text (without -> with context):");
       context_eval(corpus_pairs(corpus));
+      learning_eval(corpus[0]);
     }
     if (args.length > 2)
       for (String q : args[2].split(","))

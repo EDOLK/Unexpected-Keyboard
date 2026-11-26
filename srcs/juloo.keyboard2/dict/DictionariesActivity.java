@@ -1,6 +1,8 @@
 package juloo.keyboard2.dict;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -27,6 +29,24 @@ public class DictionariesActivity extends Activity
   public void launch_user_dictionary_activity(View v)
   {
     startActivity(new Intent(this, UserDictionaryActivity.class));
+  }
+
+  public void forget_learned_words(View v)
+  {
+    final UserBigrams ub = UserBigrams.instance(this);
+    new AlertDialog.Builder(this)
+      .setMessage(getString(R.string.user_bigrams_forget_confirm, ub.size()))
+      .setPositiveButton(android.R.string.ok,
+          new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface d, int which)
+            {
+              ub.clear();
+              Toast.makeText(DictionariesActivity.this,
+                  R.string.user_bigrams_forgotten, Toast.LENGTH_SHORT).show();
+            }
+          })
+      .setNegativeButton(android.R.string.cancel, null)
+      .show();
   }
 
   public void import_bigrams(View v)

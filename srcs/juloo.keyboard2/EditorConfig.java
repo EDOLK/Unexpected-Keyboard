@@ -44,6 +44,10 @@ public final class EditorConfig
   /** Suggestions. */
   // Doesn't override [_config.suggestions_enabled].
   public boolean should_show_candidates_view;
+  /** Whether words typed in this editor can be learned. Disabled when the
+      editor requests it (eg. incognito mode) and in fields like URLs, emails
+      and passwords. Doesn't override [_config.learn_words]. */
+  public boolean personalized_learning;
 
   public EditorConfig() {}
 
@@ -113,6 +117,8 @@ public final class EditorConfig
     /* Suggestions */
     should_show_candidates_view =
       CandidatesView.should_show(info, ignore_no_suggestions);
+    personalized_learning = auto_space_allowed
+      && (info.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) == 0;
   }
 
   String actionLabel_of_imeAction(int action, Resources res)

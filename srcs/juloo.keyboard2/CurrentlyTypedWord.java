@@ -96,8 +96,43 @@ public final class CurrentlyTypedWord
     if (!_enabled)
       return;
     _has_selection = false;
+    // Typing a separator after a word finishes it. This is not done when the
+    // word is refreshed from the editor, which would report the same words
+    // again.
+    String finished = null;
+    String[] finished_context = null;
+    if (_w_cursor == 0)
+    {
+      finished = finished_word(_w, s);
+      if (finished != null)
+        finished_context = context();
+    }
     type_chars(s);
+    if (finished != null)
+      _callback.word_finished(finished_context, finished);
     callback();
+  }
+
+  /** The word finished by typing [s] after [word], or [null]. This is
+      [word] followed by the word chars at the beginning of [s], when the rest
+      of [s] only contains separators. For example, a space typed after a
+      word or a suggestion followed by a space. Pasting several words doesn't
+      finish a word. */
+  static String finished_word(CharSequence word, String s)
+  {
+    int i = 0;
+    while (i < s.length() && is_word_char(s.codePointAt(i)))
+      i += Character.charCount(s.codePointAt(i));
+    if (i == s.length() || (i == 0 && word.length() == 0))
+      return null;
+    for (int j = i; j < s.length();)
+    {
+      int c = s.codePointAt(j);
+      if (is_word_char(c))
+        return null;
+      j += Character.charCount(c);
+    }
+    return word.toString() + s.substring(0, i);
   }
 
   public void selection_updated(int oldSelStart, int newSelStart, int newSelEnd)
@@ -365,5 +400,8 @@ public final class CurrentlyTypedWord
   public static interface Callback
   {
     public void currently_typed_word(String word);
+    /** [word] was finished by typing a separator after it. [context] are the
+        words before it, see [context()]. */
+    public void word_finished(String[] context, String word);
   }
 }

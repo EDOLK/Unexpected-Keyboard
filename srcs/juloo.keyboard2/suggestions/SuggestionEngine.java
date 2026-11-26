@@ -23,6 +23,10 @@ public interface SuggestionEngine
       Return at most [max] candidates, best first. */
   public Candidates predict(String[] context, int max);
 
+  /** [word] was typed after [context], which might be empty. Engines can
+      learn from it. Only called when the user allows it. */
+  public void learn(String[] context, String word);
+
   /** The layout in use changed. Engines can use it to know which chars are
       likely to be mistyped for each other. */
   public void set_layout(KeyboardData kw);

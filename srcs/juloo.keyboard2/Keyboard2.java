@@ -28,10 +28,12 @@ import java.util.Set;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.dict.DictionariesActivity;
+import juloo.keyboard2.dict.UserBigrams;
 import juloo.keyboard2.dict.UserDictionary;
 import juloo.keyboard2.dict.DictionarySwitcher;
 import juloo.keyboard2.prefs.LayoutsPreference;
 import juloo.keyboard2.suggestions.CandidatesView;
+import juloo.keyboard2.suggestions.CdictEngine;
 import juloo.keyboard2.suggestions.Suggestions;
 
 public class Keyboard2 extends InputMethodService
@@ -146,8 +148,9 @@ public class Keyboard2 extends InputMethodService
         _foldStateTracker.isUnfolded(), _dictionaries);
     _config = Config.globalConfig();
     Receiver recvr = this.new Receiver();
-    _suggestions = new Suggestions(recvr, _config,
-        UserDictionary.instance(this));
+    UserDictionary user_dict = UserDictionary.instance(this);
+    _suggestions = new Suggestions(recvr, _config, user_dict,
+        new CdictEngine(_config, user_dict, UserBigrams.instance(this)));
     _keyeventhandler = new KeyEventHandler(_config, recvr, _suggestions);
     KeyValue.Stateful._handler = recvr;
     _config.handler = _keyeventhandler;
@@ -162,6 +165,7 @@ public class Keyboard2 extends InputMethodService
   @Override
   public void onDestroy() {
     super.onDestroy();
+    UserBigrams.instance(this).save();
 
     _foldStateTracker.close();
   }
@@ -383,6 +387,7 @@ public class Keyboard2 extends InputMethodService
   public void onFinishInputView(boolean finishingInput)
   {
     super.onFinishInputView(finishingInput);
+    UserBigrams.instance(this).save();
     _keyboard_layout_view.reset();
   }
 

@@ -32,11 +32,6 @@ public final class Suggestions
   /** Number of suggestions in [suggestions]. */
   public static final int MAX_COUNT = 3;
 
-  public Suggestions(Callback c, Config conf, UserDictionary user_dict)
-  {
-    this(c, conf, user_dict, new CdictEngine(conf, user_dict));
-  }
-
   public Suggestions(Callback c, Config conf, UserDictionary user_dict,
       SuggestionEngine engine)
   {
@@ -71,6 +66,15 @@ public final class Suggestions
       // Nothing typed yet: suggest the next word.
       set_predictions(_engine.predict(context, MAX_COUNT), word);
     _callback.set_suggestions(this);
+  }
+
+  /** [word] was typed after the words in [context]. It is learned if
+      allowed in the settings and in the current editor. */
+  public void word_finished(String[] context, String word)
+  {
+    if (_enabled && _config.learn_words
+        && _config.editor_config.personalized_learning)
+      _engine.learn(context, word);
   }
 
   /** The layout shown to the user changed. */

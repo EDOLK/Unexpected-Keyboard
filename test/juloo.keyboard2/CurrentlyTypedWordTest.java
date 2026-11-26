@@ -67,11 +67,53 @@ public class CurrentlyTypedWordTest
     assertArrayEquals(new String[]{ "word18", "word19" }, w.context());
   }
 
+  @Test
+  public void finished_word()
+  {
+    fin("hello", " ", "hello");
+    fin("hello", ". ", "hello");
+    fin("hello", "a", null); // Still typing
+    fin("", " ", null);
+    fin("", "hello ", "hello"); // A suggestion followed by a space
+    fin("hel", "lo ", "hello");
+    fin("", "hello", null); // A suggestion without a space
+    fin("", "hello world ", null); // Pasted text
+    fin("say", " hello", null);
+  }
+
+  @Test
+  public void reports_finished_words()
+  {
+    final java.util.List<String> finished = new java.util.ArrayList<String>();
+    CurrentlyTypedWord w = new CurrentlyTypedWord(null,
+        new CurrentlyTypedWord.Callback() {
+          public void currently_typed_word(String word) {}
+          public void word_finished(String[] context, String word)
+          {
+            StringBuilder b = new StringBuilder();
+            for (String c : context) b.append(c).append(' ');
+            finished.add(b.append('[').append(word).append(']').toString());
+          }
+        });
+    w._enabled = true;
+    for (char c : "I say hello. Bye ".toCharArray())
+      w.typed(String.valueOf(c));
+    assertEquals(java.util.Arrays.asList("[I]", "I [say]", "I say [hello]",
+          "[Bye]"), finished);
+  }
+
+  static void fin(String word, String typed, String expected)
+  {
+    assertEquals(word + "|" + typed, expected,
+        CurrentlyTypedWord.finished_word(word, typed));
+  }
+
   static CurrentlyTypedWord make()
   {
     CurrentlyTypedWord w = new CurrentlyTypedWord(null,
         new CurrentlyTypedWord.Callback() {
           public void currently_typed_word(String word) {}
+          public void word_finished(String[] context, String word) {}
         });
     w._enabled = true;
     return w;

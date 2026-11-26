@@ -170,6 +170,12 @@ public final class KeyEventHandler
     _suggestions.currently_typed_word(_typedword.context(), word);
   }
 
+  @Override
+  public void word_finished(String[] context, String word)
+  {
+    _suggestions.word_finished(context, word);
+  }
+
   public void dictionary_changed()
   {
     // Refresh the suggestions immediately after dictionary changed.

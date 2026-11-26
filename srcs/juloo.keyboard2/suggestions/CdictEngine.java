@@ -10,10 +10,12 @@ import juloo.keyboard2.ComposeKeyData;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.KeyboardData;
 import juloo.keyboard2.dict.Bigrams;
+import juloo.keyboard2.dict.UserBigrams;
 import juloo.keyboard2.dict.UserDictionary;
 
-/** Engine backed by the installed [Cdict] dictionary, the user dictionary and
-    optionally word pairs ([Bigrams]).
+/** Engine backed by the installed [Cdict] dictionary, the user dictionary,
+    optionally word pairs ([Bigrams]) and the word pairs learned from the user
+    ([UserBigrams]).
 
     Candidates are gathered from exact, prefix and distance lookups and ranked
     using the word frequency and the cost of the typo that would turn the
@@ -32,11 +34,14 @@ public final class CdictEngine implements SuggestionEngine
 
   Config _config;
   UserWords _user_words;
+  UserBigrams _user_bigrams;
   TypoModel _typos = new TypoModel(KeyProximity.EMPTY);
 
-  public CdictEngine(Config conf, final UserDictionary user_dict)
+  public CdictEngine(Config conf, final UserDictionary user_dict,
+      UserBigrams user_bigrams)
   {
     _config = conf;
+    _user_bigrams = user_bigrams;
     _user_words = new UserWords() {
       public String find(String w) { return user_dict.find(w); }
       public List<String> prefix_matches(String p, int max)
@@ -49,13 +54,46 @@ public final class CdictEngine implements SuggestionEngine
   {
     // The current dictionary changes when the user switches dictionary.
     return query(_config.current_dictionary, _user_words, _typos,
-        successors(_config.current_bigrams, context), typed, max);
+        successors(context), typed, max);
   }
 
   @Override
   public Candidates predict(String[] context, int max)
   {
-    return predict(successors(_config.current_bigrams, context), max);
+    return predict(successors(context), max);
+  }
+
+  @Override
+  public void learn(String[] context, String word)
+  {
+    if (context.length == 0)
+      return;
+    String prev = known_word(context[context.length - 1]);
+    String next = known_word(word);
+    if (prev != null && next != null)
+      _user_bigrams.learn(prev, next);
+  }
+
+  Bigrams.Successors successors(String[] context)
+  {
+    if (context.length == 0)
+      return Bigrams.NONE;
+    return _user_bigrams.merge(_config.current_bigrams,
+        context[context.length - 1]);
+  }
+
+  /** The word as spelled in the user or main dictionary, or [null] if it is
+      unknown. Avoids learning typos. */
+  String known_word(String w)
+  {
+    String u = _user_words.find(w);
+    if (u != null)
+      return u;
+    Cdict dict = _config.current_dictionary;
+    if (dict == null)
+      return null;
+    Cdict.Result r = dict.find(apply_substitutions(w));
+    return r.found ? dict.word(r.index) : null;
   }
 
   @Override
@@ -72,21 +110,24 @@ public final class CdictEngine implements SuggestionEngine
   static final float COST_WEIGHT = 3.f;
   /** Number of words requested to each lookup. */
   static final int POOL_SIZE = 16;
-  /** Bonus, in levels of frequency, for the most likely word following the
-      previous word. Other following words get a proportional bonus. Tuned
-      with [scripts/eval_suggestions]. */
-  static final float BIGRAM_BONUS = 1.0f;
+  /** Bonus, in levels of frequency, for a following word of weight
+      [Bigrams.MAX_WEIGHT]. Weights are normalized by [UserBigrams.merge]:
+      the most likely pair from the word pairs file gets a bonus of about 1
+      and learned pairs get up to 3. Tuned with [scripts/eval_suggestions]. */
+  static final float BIGRAM_BONUS = 3.f;
   /** Frequency of a following word that is not in the dictionary. */
   static final int UNKNOWN_SUCCESSOR_FREQ = 8;
 
-  /** Words following the last word of [context]. [bigrams] might be
-      [null]. */
+  /** Words following the last word of [context] according to [bigrams]
+      only, with weights normalized like [UserBigrams.merge]. [bigrams] might
+      be [null]. */
   public static Bigrams.Successors successors(Bigrams bigrams,
       String[] context)
   {
     if (bigrams == null || context.length == 0)
       return Bigrams.NONE;
-    return bigrams.successors(context[context.length - 1]);
+    return UserBigrams.merge(bigrams, new java.util.ArrayList<UserBigrams.Pair>(),
+        context[context.length - 1]);
   }
 
   /** [dict] might be [null]. [succ] are the words following the previous
@@ -159,16 +200,13 @@ public final class CdictEngine implements SuggestionEngine
 
   static void apply_bigram_bonus(List<Scored> pool, Bigrams.Successors succ)
   {
-    int max_weight = 1;
-    for (int w : succ.weights)
-      max_weight = Math.max(max_weight, w);
     for (int i = 0; i < pool.size(); i++)
     {
       Scored s = pool.get(i);
       for (int j = 0; j < succ.words.length; j++)
         if (succ.words[j].equalsIgnoreCase(s.word))
         {
-          float bonus = BIGRAM_BONUS * succ.weights[j] / max_weight;
+          float bonus = BIGRAM_BONUS * succ.weights[j] / Bigrams.MAX_WEIGHT;
           pool.set(i, new Scored(s.word, s.score + bonus));
           break;
         }
