@@ -18,6 +18,11 @@ public final class CurrentlyTypedWord
 
   /** The currently typed word. */
   StringBuilder _w = new StringBuilder();
+  /** Text before the currently typed word, used to compute [context()]. At
+      most [CONTEXT_CHARS] long. */
+  StringBuilder _before = new StringBuilder();
+  /** Whether the beginning of [_before] might be in the middle of a word. */
+  boolean _before_truncated = false;
   /** This can be disabled if the editor doesn't support looking at the text
       before the cursor. */
   boolean _enabled = false;
@@ -50,6 +55,19 @@ public final class CurrentlyTypedWord
   {
     return _has_selection;
   }
+
+  /** Up to [CONTEXT_WORDS] words preceding the currently typed word, the
+      most recent last. See [context_words]. */
+  public String[] context()
+  {
+    return context_words(_before, _before_truncated, CONTEXT_WORDS);
+  }
+
+  /** Number of chars before the cursor to request from the editor. */
+  public static final int TEXT_BEFORE_LENGTH = 64;
+  /** Maximum length of [_before]. */
+  static final int CONTEXT_CHARS = 48;
+  static final int CONTEXT_WORDS = 2;
 
   /** The cursor position relative to the end of the word. */
   public int cursor_relative()
@@ -163,8 +181,27 @@ public final class CurrentlyTypedWord
         insert_start = i;
     }
     if (insert_start > 0)
+    {
+      // The word before the cursor is finished, it becomes context.
+      _before.append(_w, 0, Math.max(_w.length() + _w_cursor, 0));
+      _before.append(s, start, insert_start);
+      trim_before();
       _w.setLength(0);
+    }
     _w.insert(Math.max(_w.length() + _w_cursor, 0), s, insert_start, end);
+  }
+
+  /** Keep [_before] at most [CONTEXT_CHARS] long. */
+  void trim_before()
+  {
+    int excess = _before.length() - CONTEXT_CHARS;
+    if (excess <= 0)
+      return;
+    // Don't split a surrogate pair.
+    if (Character.isLowSurrogate(_before.charAt(excess)))
+      excess++;
+    _before.delete(0, excess);
+    _before_truncated = true;
   }
 
   void type_chars(CharSequence s)
@@ -202,17 +239,18 @@ public final class CurrentlyTypedWord
     if (_has_selection)
       set_current_word("");
     else if (VERSION.SDK_INT >= 31)
-      set_current_word(_ic.getSurroundingText(20, 20, 0));
+      set_current_word(_ic.getSurroundingText(TEXT_BEFORE_LENGTH, 20, 0));
     else
-      set_current_word(_ic.getTextBeforeCursor(20, 0));
+      set_current_word(_ic.getTextBeforeCursor(TEXT_BEFORE_LENGTH, 0));
   }
 
   /** Refresh the current word by immediately querying the editor. */
   void set_current_word(CharSequence text_before_cursor)
   {
-    _w.setLength(0);
+    clear_word();
     if (text_before_cursor == null)
       return;
+    _before_truncated = text_before_cursor.length() >= TEXT_BEFORE_LENGTH;
     int saved_cursor = _cursor;
     type_chars(text_before_cursor.toString());
     _cursor = saved_cursor;
@@ -222,16 +260,24 @@ public final class CurrentlyTypedWord
   /** Like above but take the text after the cursor into account. */
   void set_current_word(SurroundingText st)
   {
-    _w.setLength(0);
+    clear_word();
     if (st == null)
       return;
     int saved_cursor = _cursor;
     int st_sel = st.getSelectionStart();
     CharSequence st_text = st.getText();
+    _before_truncated = st_sel >= TEXT_BEFORE_LENGTH;
     type_chars(st_text, 0, st_sel);
     _w_cursor = -append_chars(st_text, st_sel, st_text.length());
     _cursor = saved_cursor;
     callback();
+  }
+
+  void clear_word()
+  {
+    _w.setLength(0);
+    _before.setLength(0);
+    _before_truncated = false;
   }
 
   /** Wait some time to let the editor finishes reacting to changes and call
@@ -256,6 +302,64 @@ public final class CurrentlyTypedWord
   public static boolean is_word_char(int c)
   {
     return Character.isLetterOrDigit(c) || (c == '\'');
+  }
+
+  /** Extract up to [max] words from the end of [text], the last word last.
+      Stop at the beginning of the sentence, so the context is empty at the
+      start of a sentence. If [truncated], the first word of [text] might be
+      incomplete and is not returned. Separators other than sentence ends are
+      skipped. */
+  public static String[] context_words(CharSequence text, boolean truncated,
+      int max)
+  {
+    String[] words = new String[max];
+    int n = 0;
+    int end = text.length();
+    while (n < max)
+    {
+      // Skip separators, stopping at the end of a sentence.
+      int i = end;
+      while (i > 0)
+      {
+        int c = Character.codePointBefore(text, i);
+        if (is_word_char(c))
+          break;
+        if (is_sentence_end(c))
+          i = 0;
+        else
+          i -= Character.charCount(c);
+      }
+      if (i == 0)
+        break;
+      end = i;
+      while (i > 0)
+      {
+        int c = Character.codePointBefore(text, i);
+        if (!is_word_char(c))
+          break;
+        i -= Character.charCount(c);
+      }
+      if (i == 0 && truncated)
+        break;
+      words[n++] = text.subSequence(i, end).toString();
+      end = i;
+    }
+    String[] res = new String[n];
+    for (int j = 0; j < n; j++)
+      res[j] = words[n - 1 - j];
+    return res;
+  }
+
+  static boolean is_sentence_end(int c)
+  {
+    switch (c)
+    {
+      case '.': case '!': case '?': case '\n': case '\u2026': case '\u3002':
+      case '\u00A1': case '\u00BF':
+        return true;
+      default:
+        return false;
+    }
   }
 
   public static interface Callback

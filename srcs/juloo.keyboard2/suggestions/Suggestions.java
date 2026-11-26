@@ -14,8 +14,9 @@ public final class Suggestions
   UserDictionary _user_dict;
   SuggestionEngine _engine;
   boolean _enabled;
-  /** The word passed to the last call to [currently_typed_word]. */
+  /** The arguments to the last call to [currently_typed_word]. */
   String _last_typed_word = "";
+  String[] _last_context = SuggestionEngine.NO_CONTEXT;
 
   /** Current suggestions. The best suggestion is at index [0]. */
   public String[] suggestions = new String[MAX_COUNT];
@@ -50,15 +51,17 @@ public final class Suggestions
     clear();
   }
 
-  public void currently_typed_word(String word)
+  /** [context] contains the words preceding [word], the most recent last. */
+  public void currently_typed_word(String[] context, String word)
   {
     if (!_enabled)
       return;
     _last_typed_word = word;
+    _last_context = context;
     if (word.length() < 2)
       clear();
     else
-      query_suggestions(word);
+      query_suggestions(context, word);
     _callback.set_suggestions(this);
   }
 
@@ -83,7 +86,7 @@ public final class Suggestions
         r = UserWordChange.REMOVED;
     }
     if (r != UserWordChange.NONE)
-      currently_typed_word(_last_typed_word);
+      currently_typed_word(_last_context, _last_typed_word);
     return r;
   }
 
@@ -96,10 +99,9 @@ public final class Suggestions
     unknown_word = null;
   }
 
-  int query_suggestions(String word)
+  int query_suggestions(String[] context, String word)
   {
-    Candidates c =
-      _engine.query(SuggestionEngine.NO_CONTEXT, word, MAX_COUNT);
+    Candidates c = _engine.query(context, word, MAX_COUNT);
     set_candidates(c, word);
     // Word with substitutions applied
     emoji_suggestion = query_emoji(CdictEngine.apply_substitutions(word));
