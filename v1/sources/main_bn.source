@@ -1,0 +1,2 @@
+source: created using [`wordlist.py`](scripts/wordlist.py) and [`wordlist_combined.py`](scripts/wordlist_combined.py), based on word lists from the Leipzig Corpora Collection (https://wortschatz.uni-leipzig.de/en/download), then thoroughly proofread and corrected.
+license: source lists under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
