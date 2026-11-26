@@ -3,6 +3,7 @@ package juloo.keyboard2.suggestions;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.dict.UserDictionary;
 import juloo.keyboard2.Config;
+import juloo.keyboard2.KeyboardData;
 
 /** Keep track of the word being typed and provide suggestions for
     [CandidatesView]. Finding and ranking words is done by a
@@ -63,6 +64,12 @@ public final class Suggestions
     else
       query_suggestions(context, word);
     _callback.set_suggestions(this);
+  }
+
+  /** The layout shown to the user changed. */
+  public void set_layout(KeyboardData kw)
+  {
+    _engine.set_layout(kw);
   }
 
   /** Result of [toggle_user_word]. */

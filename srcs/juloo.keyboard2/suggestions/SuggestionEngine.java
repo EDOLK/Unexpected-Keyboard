@@ -1,5 +1,7 @@
 package juloo.keyboard2.suggestions;
 
+import juloo.keyboard2.KeyboardData;
+
 /** Source of word suggestions. [Suggestions] owns the state shown in the
     candidates view and delegates finding and ranking words to an engine, so
     that the engine can be replaced without touching the UI code.
@@ -15,6 +17,10 @@ public interface SuggestionEngine
       never empty.
       Return at most [max] candidates, best first. */
   public Candidates query(String[] context, String typed, int max);
+
+  /** The layout in use changed. Engines can use it to know which chars are
+      likely to be mistyped for each other. */
+  public void set_layout(KeyboardData kw);
 
   public static final String[] NO_CONTEXT = new String[0];
 }
