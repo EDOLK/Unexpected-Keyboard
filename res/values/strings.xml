@@ -181,6 +181,11 @@
     <string name="user_dictionary_remove">Remove %s</string>
     <string name="user_dictionary_empty">No words yet</string>
     <string name="user_dictionary_no_spaces">A word can\'t contain spaces</string>
+    <string name="bigrams_import">Import word pairs</string>
+    <string name="bigrams_description">Word pairs files improve suggestions using the previous word and suggest the next word after a space. They are built for a dictionary, which must be installed.</string>
+    <string name="bigrams_installed">Word pairs installed for %s</string>
+    <string name="bigrams_dict_not_installed">Word pairs installed for %s. Install that dictionary to use them.</string>
+    <string name="bigrams_import_failed">Not a valid word pairs file (%s)</string>
     <string name="pref_physical_keyboard_behavior">When a physical keyboard is connected</string>
     <string name="pref_physical_keyboard_behavior_hide">Hide everything</string>
     <string name="pref_physical_keyboard_behavior_show">Show everything</string>

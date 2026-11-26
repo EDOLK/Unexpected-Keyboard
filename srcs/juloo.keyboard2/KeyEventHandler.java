@@ -787,7 +787,10 @@ public final class KeyEventHandler
     // a second one.
     if (_last_action == LastAction.AUTO_SPACE)
       return;
+    // Next word predictions are shown when less than 2 letters are typed,
+    // they must not be entered on space.
     if (_config.space_bar_auto_complete && _suggestions.count > 0
+        && _typedword.get().length() >= 2
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0
         && _last_action == LastAction.OTHER)

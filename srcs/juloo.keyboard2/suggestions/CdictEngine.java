@@ -9,14 +9,16 @@ import juloo.keyboard2.ComposeKey;
 import juloo.keyboard2.ComposeKeyData;
 import juloo.keyboard2.Config;
 import juloo.keyboard2.KeyboardData;
+import juloo.keyboard2.dict.Bigrams;
 import juloo.keyboard2.dict.UserDictionary;
 
-/** Engine backed by the installed [Cdict] dictionary and the user dictionary.
-    It doesn't use the context yet.
+/** Engine backed by the installed [Cdict] dictionary, the user dictionary and
+    optionally word pairs ([Bigrams]).
 
     Candidates are gathered from exact, prefix and distance lookups and ranked
     using the word frequency and the cost of the typo that would turn the
-    word into what was typed ([TypoModel]). */
+    word into what was typed ([TypoModel]). Words that often follow the
+    previous word get a bonus. */
 public final class CdictEngine implements SuggestionEngine
 {
   /** Access to the user's words. */
@@ -46,7 +48,14 @@ public final class CdictEngine implements SuggestionEngine
   public Candidates query(String[] context, String typed, int max)
   {
     // The current dictionary changes when the user switches dictionary.
-    return query(_config.current_dictionary, _user_words, _typos, typed, max);
+    return query(_config.current_dictionary, _user_words, _typos,
+        successors(_config.current_bigrams, context), typed, max);
+  }
+
+  @Override
+  public Candidates predict(String[] context, int max)
+  {
+    return predict(successors(_config.current_bigrams, context), max);
   }
 
   @Override
@@ -63,10 +72,27 @@ public final class CdictEngine implements SuggestionEngine
   static final float COST_WEIGHT = 3.f;
   /** Number of words requested to each lookup. */
   static final int POOL_SIZE = 16;
+  /** Bonus, in levels of frequency, for the most likely word following the
+      previous word. Other following words get a proportional bonus. Tuned
+      with [scripts/eval_suggestions]. */
+  static final float BIGRAM_BONUS = 1.0f;
+  /** Frequency of a following word that is not in the dictionary. */
+  static final int UNKNOWN_SUCCESSOR_FREQ = 8;
 
-  /** [dict] might be [null]. */
+  /** Words following the last word of [context]. [bigrams] might be
+      [null]. */
+  public static Bigrams.Successors successors(Bigrams bigrams,
+      String[] context)
+  {
+    if (bigrams == null || context.length == 0)
+      return Bigrams.NONE;
+    return bigrams.successors(context[context.length - 1]);
+  }
+
+  /** [dict] might be [null]. [succ] are the words following the previous
+      word, see [successors]. */
   public static Candidates query(Cdict dict, UserWords user_words,
-      TypoModel typos, String typed, int max)
+      TypoModel typos, Bigrams.Successors succ, String typed, int max)
   {
     Candidates c = new Candidates(max);
     String word = apply_substitutions(typed);
@@ -102,6 +128,14 @@ public final class CdictEngine implements SuggestionEngine
         add_transpositions(pool, dict, typos, typed, word);
       }
     }
+    if (succ.words.length > 0)
+    {
+      // Following words might not be among the most frequent words found
+      // above.
+      for (String w : succ.words)
+        pool.add(score(typos, typed, w, freq_of(dict, w)));
+      apply_bigram_bonus(pool, succ);
+    }
     Collections.sort(pool, Scored.BEST_FIRST);
     for (Scored s : pool)
     {
@@ -110,6 +144,43 @@ public final class CdictEngine implements SuggestionEngine
       c.add(s.word, s.score);
     }
     return c;
+  }
+
+  /** Words following the previous word, most likely first. */
+  public static Candidates predict(Bigrams.Successors succ, int max)
+  {
+    Candidates c = new Candidates(max);
+    c.typed_word_valid = true;
+    // Successors are sorted by decreasing weight.
+    for (int i = 0; i < succ.words.length && !c.is_full(); i++)
+      c.add(succ.words[i], succ.weights[i]);
+    return c;
+  }
+
+  static void apply_bigram_bonus(List<Scored> pool, Bigrams.Successors succ)
+  {
+    int max_weight = 1;
+    for (int w : succ.weights)
+      max_weight = Math.max(max_weight, w);
+    for (int i = 0; i < pool.size(); i++)
+    {
+      Scored s = pool.get(i);
+      for (int j = 0; j < succ.words.length; j++)
+        if (succ.words[j].equalsIgnoreCase(s.word))
+        {
+          float bonus = BIGRAM_BONUS * succ.weights[j] / max_weight;
+          pool.set(i, new Scored(s.word, s.score + bonus));
+          break;
+        }
+    }
+  }
+
+  static int freq_of(Cdict dict, String w)
+  {
+    if (dict == null)
+      return UNKNOWN_SUCCESSOR_FREQ;
+    Cdict.Result r = dict.find(apply_substitutions(w));
+    return r.found ? dict.freq(r.index) : UNKNOWN_SUCCESSOR_FREQ;
   }
 
   /** Swapped letters are two edits away and are not found by

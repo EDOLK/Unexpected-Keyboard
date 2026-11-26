@@ -41,6 +41,7 @@ public final class Dictionaries
     config.current_dictionary_name = null;
     config.current_dictionary = null;
     config.emoji_dictionary = null;
+    config.current_bigrams = null;
     if (name == null)
       return;
     Cdict[] dicts = load(name);
@@ -49,6 +50,49 @@ public final class Dictionaries
     config.current_dictionary_name = name;
     config.current_dictionary = find_by_name(dicts, "main");
     config.emoji_dictionary = find_by_name(dicts, "emoji");
+    config.current_bigrams = load_bigrams(name);
+  }
+
+  /** Load the word pairs installed for a dictionary. Return [null] if there
+      are none or they couldn't be loaded. */
+  public Bigrams load_bigrams(String dict_name)
+  {
+    if (_loaded_bigrams.containsKey(dict_name))
+      return _loaded_bigrams.get(dict_name);
+    Bigrams b = load_bigrams_uncached(dict_name);
+    _loaded_bigrams.put(dict_name, b);
+    return b;
+  }
+
+  public boolean has_bigrams(String dict_name)
+  {
+    return get_bigrams_location(dict_name).exists();
+  }
+
+  /** Install a word pairs file. The dictionary it is for is read from the
+      file. Return the name of that dictionary. */
+  public String install_bigrams(byte[] data) throws IOException, Bigrams.Error
+  {
+    String dict_name = Bigrams.of_bytes(data).dict_name;
+    if (!dict_name.matches("[a-zA-Z0-9_-]+"))
+      throw new Bigrams.Error("Invalid dictionary name");
+    FileOutputStream outp = _context.openFileOutput(
+        bigrams_file_name(dict_name), Context.MODE_PRIVATE);
+    outp.write(data);
+    outp.close();
+    _loaded_bigrams.remove(dict_name);
+    return dict_name;
+  }
+
+  public void uninstall_bigrams(String dict_name)
+  {
+    _context.deleteFile(bigrams_file_name(dict_name));
+    _loaded_bigrams.remove(dict_name);
+  }
+
+  public File get_bigrams_location(String dict_name)
+  {
+    return _context.getFileStreamPath(bigrams_file_name(dict_name));
   }
 
   /** Util for finding a dictionary by name. Returns [null] if not found. */
@@ -117,6 +161,7 @@ public final class Dictionaries
     _context.deleteFile(dict_file_name(dict_name));
     _installed_dictionaries.remove(dict_name);
     _loaded_dictionaries.remove(dict_name);
+    uninstall_bigrams(dict_name);
     save();
   }
 
@@ -126,6 +171,7 @@ public final class Dictionaries
   Set<String> _installed_dictionaries;
   SharedPreferences _shared_prefs;
   Map<String, Cdict[]> _loaded_dictionaries;
+  Map<String, Bigrams> _loaded_bigrams = new TreeMap<String, Bigrams>();
 
   static Dictionaries _instance = null;
 
@@ -155,6 +201,26 @@ public final class Dictionaries
     }
     catch (IOException e) { return null; }
     catch (Cdict.ConstructionError e) { return null; }
+  }
+
+  Bigrams load_bigrams_uncached(String dict_name)
+  {
+    if (!has_bigrams(dict_name))
+      return null;
+    try
+    {
+      FileInputStream inp = _context.openFileInput(bigrams_file_name(dict_name));
+      byte[] data = Utils.read_all_bytes(inp);
+      inp.close();
+      return Bigrams.of_bytes(data);
+    }
+    catch (IOException e) { return null; }
+    catch (Bigrams.Error e) { return null; }
+  }
+
+  static String bigrams_file_name(String dict_name)
+  {
+    return dict_name + ".bigrams";
   }
 
   void save()

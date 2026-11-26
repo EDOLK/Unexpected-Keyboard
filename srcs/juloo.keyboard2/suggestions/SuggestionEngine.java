@@ -18,6 +18,11 @@ public interface SuggestionEngine
       Return at most [max] candidates, best first. */
   public Candidates query(String[] context, String typed, int max);
 
+  /** Words likely to follow [context], for when nothing of the next word is
+      typed yet. [context] is never empty.
+      Return at most [max] candidates, best first. */
+  public Candidates predict(String[] context, int max);
+
   /** The layout in use changed. Engines can use it to know which chars are
       likely to be mistyped for each other. */
   public void set_layout(KeyboardData kw);

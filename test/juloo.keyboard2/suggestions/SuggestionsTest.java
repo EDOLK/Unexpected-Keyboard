@@ -65,6 +65,41 @@ public class SuggestionsTest
     assertArrayEquals(new String[]{ "a", "b", "c" }, s.suggestions);
   }
 
+  @Test
+  public void predictions()
+  {
+    Candidates c = new Candidates(3);
+    c.add("you", 3);
+    c.add("God", 2);
+    Suggestions s = new Suggestions(null, null, null, null);
+    s.set_predictions(c, "");
+    assertEquals(2, s.count);
+    assertArrayEquals(new String[]{ "you", "God", null }, s.suggestions);
+    assertNull(s.unknown_word);
+    s.set_predictions(c, "Y");
+    assertArrayEquals(new String[]{ "You", "God", null }, s.suggestions);
+  }
+
+  @Test
+  public void predict_from_bigrams() throws Exception
+  {
+    juloo.keyboard2.dict.Bigrams b =
+      juloo.keyboard2.dict.BigramsTest.load_fixture();
+    String[] ctx = { "I", "thank" };
+    // The last word of the context is used
+    Candidates c = CdictEngine.predict(CdictEngine.successors(b, ctx), 3);
+    assertArrayEquals(new String[]{ "you", "God", "goodness" }, c.words);
+    c = CdictEngine.predict(CdictEngine.successors(b, ctx), 2);
+    assertArrayEquals(new String[]{ "you", "God" }, c.words);
+    // Previous words are matched exactly, except for case
+    c = CdictEngine.predict(
+        CdictEngine.successors(b, new String[]{ "cafe" }), 3);
+    assertEquals(0, c.count);
+    // No bigrams or no context
+    assertEquals(0, CdictEngine.successors(null, ctx).words.length);
+    assertEquals(0, CdictEngine.successors(b, new String[0]).words.length);
+  }
+
   static Suggestions set(String typed, boolean valid, String... words)
   {
     Candidates c = new Candidates(words.length);

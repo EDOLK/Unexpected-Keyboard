@@ -92,6 +92,8 @@ public final class Config
   public DeviceLocales device_locales = null;
   public Cdict current_dictionary = null; // Might be 'null'.
   public Cdict emoji_dictionary = null; // Might be 'null'.
+  /** Word pairs for the current dictionary. Might be 'null'. */
+  public juloo.keyboard2.dict.Bigrams current_bigrams = null;
   public String current_dictionary_name = null; // Internal name for the current dictionary
   /** Whether to show the dictionary switching button in the candidates view. */
   public boolean should_show_dictionary_switch = false;

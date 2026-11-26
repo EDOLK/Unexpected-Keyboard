@@ -59,10 +59,17 @@ public final class Suggestions
       return;
     _last_typed_word = word;
     _last_context = context;
-    if (word.length() < 2)
-      clear();
-    else
+    if (word.length() >= 2)
       query_suggestions(context, word);
+    else if (context.length == 0)
+      clear();
+    else if (word.length() == 1)
+      // The context makes suggestions useful after the first letter. The
+      // typed letter is not offered as an unknown word.
+      set_predictions(_engine.query(context, word, MAX_COUNT), word);
+    else
+      // Nothing typed yet: suggest the next word.
+      set_predictions(_engine.predict(context, MAX_COUNT), word);
     _callback.set_suggestions(this);
   }
 
@@ -133,6 +140,17 @@ public final class Suggestions
         count++;
       suggestions[count - 1] = typed;
     }
+  }
+
+  /** Fill [suggestions] without offering [prefix] as an unknown word.
+      [prefix] is what's typed of the current word, possibly empty. */
+  void set_predictions(Candidates c, String prefix)
+  {
+    clear();
+    for (int i = 0; i < c.count && count < MAX_COUNT; i++)
+      suggestions[count++] = c.words[i];
+    if (prefix.length() > 0 && Character.isUpperCase(prefix.charAt(0)))
+      capitalize_results(suggestions, count);
   }
 
   static void capitalize_results(String[] s, int count)

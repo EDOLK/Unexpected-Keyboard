@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import juloo.cdict.Cdict;
+import juloo.keyboard2.dict.Bigrams;
 
 /** Offline evaluation of the suggestion ranking, see [run.sh].
     Compares the ranking before the typo model was introduced ([old_query])
@@ -53,8 +54,92 @@ public class Eval
 
   static String[] new_query(String typed, int max)
   {
-    Candidates c = CdictEngine.query(dict, NO_USER, typos, typed, max);
+    return new_query(Bigrams.NONE, typed, max);
+  }
+
+  static String[] new_query(Bigrams.Successors succ, String typed, int max)
+  {
+    Candidates c = CdictEngine.query(dict, NO_USER, typos, succ, typed, max);
     return Arrays.copyOf(c.words, c.count);
+  }
+
+  static Bigrams bigrams = null;
+
+  /** Pairs of (previous word, word) from running text, within sentences. */
+  static List<String[]> corpus_pairs(String[] files) throws IOException
+  {
+    List<String[]> pairs = new ArrayList<String[]>();
+    for (String f : files)
+    {
+      String text = new String(Files.readAllBytes(Paths.get(f)), "UTF-8");
+      for (String sentence : text.split("[.!?;:\"()]|\\R\\s*\\R"))
+      {
+        String prev = null;
+        for (String w : sentence.split("[^A-Za-z']+"))
+        {
+          w = w.replaceAll("^'+|'+$", "");
+          if (w.isEmpty()) continue;
+          if (prev != null && valid(w) && valid(prev))
+            pairs.add(new String[]{ prev, w });
+          prev = w;
+        }
+      }
+    }
+    Collections.shuffle(pairs, new Random(3));
+    return pairs.subList(0, Math.min(pairs.size(), 20000));
+  }
+
+  static void context_eval(List<String[]> pairs)
+  {
+    // Next word prediction, before typing anything.
+    {
+      int n = 0, top1 = 0, top3 = 0;
+      for (String[] p : pairs)
+      {
+        n++;
+        Candidates c = CdictEngine.predict(bigrams.successors(p[0]), 3);
+        int r = rank(Arrays.copyOf(c.words, c.count), p[1]);
+        if (r == 0) top1++; if (r >= 0) top3++;
+      }
+      System.out.printf("%-34s n=%5d  top1 %5.1f%%           top3 %5.1f%%%n",
+          "next word, nothing typed", n, 100.*top1/n, 100.*top3/n);
+    }
+    // Completion and correction, without -> with the previous word.
+    for (int k = 1; k <= 3; k++)
+    {
+      int n = 0; int[] o = new int[2], nw = new int[2];
+      for (String[] p : pairs)
+      {
+        if (p[1].length() <= k) continue;
+        n++;
+        String typed = p[1].substring(0, k);
+        int ro = rank(new_query(typed, 3), p[1]);
+        int rn = rank(new_query(bigrams.successors(p[0]), typed, 3), p[1]);
+        if (ro == 0) o[0]++; if (ro >= 0) o[1]++;
+        if (rn == 0) nw[0]++; if (rn >= 0) nw[1]++;
+      }
+      print("completion, " + k + " letter(s), +context", n, o, nw);
+    }
+    Random rnd = new Random(42);
+    int n = 0; int[] o = new int[2], nw = new int[2];
+    for (String[] p : pairs)
+    {
+      if (p[1].length() < 3) continue;
+      String typed = noisy(p[1], rnd, 0.35);
+      if (typed.equals(p[1]) || typed.length() < 2 || valid(typed)) continue;
+      n++;
+      int ro = rank(new_query(typed, 3), p[1]);
+      int rn = rank(new_query(bigrams.successors(p[0]), typed, 3), p[1]);
+      if (ro == 0) o[0]++; if (ro >= 0) o[1]++;
+      if (rn == 0) nw[0]++; if (rn >= 0) nw[1]++;
+    }
+    print("typos (sigma=0.35), +context", n, o, nw);
+  }
+
+  static void print(String name, int n, int[] o, int[] nw)
+  {
+    System.out.printf("%-34s n=%5d  top1 %5.1f%% -> %5.1f%%   top3 %5.1f%% -> %5.1f%%%n",
+        name, n, 100.*o[0]/n, 100.*nw[0]/n, 100.*o[1]/n, 100.*nw[1]/n);
   }
 
   static int rank(String[] res, String target)
@@ -159,8 +244,21 @@ public class Eval
         "clean prefix completion", n, 100.*o[0]/n, 100.*nw[0]/n, 100.*o[1]/n, 100.*nw[1]/n);
   }
 
-  public static void main(String[] args) throws Exception
+  public static void main(String[] argv) throws Exception
   {
+    // Options: --bigrams FILE --corpus FILE,FILE
+    List<String> rest = new ArrayList<String>();
+    String[] corpus = null;
+    for (int i = 0; i < argv.length; i++)
+    {
+      if (argv[i].equals("--bigrams"))
+        bigrams = Bigrams.of_bytes(Files.readAllBytes(Paths.get(argv[++i])));
+      else if (argv[i].equals("--corpus"))
+        corpus = argv[++i].split(",");
+      else
+        rest.add(argv[i]);
+    }
+    String[] args = rest.toArray(new String[0]);
     dict = Cdict.of_bytes(Files.readAllBytes(Paths.get(args[0])))[0];
     for (Cdict d : Cdict.of_bytes(Files.readAllBytes(Paths.get(args[0]))))
       if (d.name.equals("main")) dict = d;
@@ -196,6 +294,11 @@ public class Eval
       if (warm == 1)
         System.out.printf("avg per query: old %.1f us, new %.1f us%n",
             (t1 - t0) / 1e3 / qs.length, (t2 - t1) / 1e3 / qs.length);
+    }
+    if (bigrams != null && corpus != null)
+    {
+      System.out.println("With word pairs, on running text (without -> with context):");
+      context_eval(corpus_pairs(corpus));
     }
     if (args.length > 2)
       for (String q : args[2].split(","))
