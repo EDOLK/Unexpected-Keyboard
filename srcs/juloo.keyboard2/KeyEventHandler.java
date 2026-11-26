@@ -64,6 +64,11 @@ public final class KeyEventHandler
   {
     _autocap.selection_updated(oldSelStart, newSelStart);
     _typedword.selection_updated(oldSelStart, newSelStart, newSelEnd);
+    // The cursor moved away from the entered suggestion, backspace shouldn't
+    // undo it anymore.
+    if (_last_action == LastAction.SUGGESTION_ENTERED
+        && (newSelStart != newSelEnd || newSelStart != last_suggestion_cursor))
+      _last_action = LastAction.OTHER;
   }
 
   /** A key is being pressed. There will not necessarily be a corresponding
@@ -147,6 +152,10 @@ public final class KeyEventHandler
     last_replacement_word_len = text.length();
     last_suggestion_added_space = add_space_after;
     _next_last_action = LastAction.SUGGESTION_ENTERED;
+    // Suggestions tapped in the candidates view are not entered from
+    // [key_up], which would otherwise update [_last_action].
+    _last_action = LastAction.SUGGESTION_ENTERED;
+    last_suggestion_cursor = _typedword._cursor;
   }
 
   @Override
@@ -653,13 +662,16 @@ public final class KeyEventHandler
       _recv.selection_state_changed(false);
   }
 
-  /** The word that was replaced by a suggestion when the last action was to
+  /** The text that was replaced by a suggestion when the last action was to
       enter a suggestion (with the space bar or the candidates view) or [null]
-      otherwise. */
+      otherwise. Backspace restores it. Includes the space typed by the user
+      when the suggestion was entered with the space bar. */
   String last_replaced_word = null;
   /** Length of the text before the cursor that should be replaced by
       backspace. */
   int last_replacement_word_len = 0;
+  /** Cursor position right after the last entered suggestion. */
+  int last_suggestion_cursor = -1;
   /** Whether a space was added after the last entered suggestion. */
   boolean last_suggestion_added_space = false;
 
@@ -785,6 +797,8 @@ public final class KeyEventHandler
       if (!w.equals(_typedword.get()))
       {
         suggestion_entered(w, true);
+        // The user typed a space, restore it when undoing.
+        last_replaced_word = last_replaced_word + " ";
         return;
       }
     }
@@ -797,7 +811,7 @@ public final class KeyEventHandler
     if (_last_action == LastAction.SUGGESTION_ENTERED
         && last_replaced_word != null)
     {
-      replace_surrounding_text(last_replacement_word_len, 0, last_replaced_word + " ");
+      replace_surrounding_text(last_replacement_word_len, 0, last_replaced_word);
       last_replaced_word = null;
       _next_last_action = LastAction.SUGGESTION_UNDO;
     }

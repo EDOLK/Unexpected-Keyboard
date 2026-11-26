@@ -130,8 +130,15 @@ public final class CurrentlyTypedWord
     int c = len + _w_cursor;
     _w.delete(Math.max(c - remove_before, 0), Math.max(Math.min(c + remove_after, len), 0));
     _cursor -= remove_before;
-    _w_cursor -= remove_after;
+    // The removed text extends past the boundaries of the tracked word. The
+    // text that is now around the cursor might be part of a word that isn't
+    // tracked, for example when removing the space after a word. Query the
+    // editor once it has processed the change.
+    boolean past_boundaries = remove_before > c || remove_after > -_w_cursor;
+    _w_cursor = Math.min(_w_cursor + remove_after, 0);
     callback();
+    if (past_boundaries)
+      delayed_refresh();
   }
 
   void callback()
