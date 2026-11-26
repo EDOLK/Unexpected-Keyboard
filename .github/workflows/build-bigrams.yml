@@ -1,0 +1,67 @@
+name: Build word pairs
+
+# Rebuilds the word pairs files from aosp-dictionaries and publishes them to
+# the 'bigrams' branch, where the app downloads them from.
+#
+# The app checks downloads against res/values/bigrams.xml, so the files are
+# only published when that file is already up to date on the branch the
+# workflow runs on. Otherwise, the updated file is attached to the run as an
+# artifact: commit it, then run the workflow again.
+#
+# Published files must match the checksums of released versions of the app,
+# so only publish new files together with a release.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+    - name: Fetch the word lists
+      run: |
+        git clone -q --depth 1 --filter=blob:none --no-checkout \
+          https://codeberg.org/Helium314/aosp-dictionaries aosp
+        cd aosp
+        git sparse-checkout set --no-cone '/wordlists/main_*.combined' '/wordlists/main_*.source'
+        git checkout -q
+        git log -1 --format='Source: aosp-dictionaries %H (%cd)'
+    - name: Build
+      run: python3 scripts/build_bigrams.py aosp out
+    - name: Upload res/values/bigrams.xml
+      uses: actions/upload-artifact@v4
+      with:
+        name: bigrams.xml
+        path: res/values/bigrams.xml
+    - name: Check that res/values/bigrams.xml is up to date
+      run: |
+        if ! git diff --exit-code res/values/bigrams.xml; then
+          echo "::error::res/values/bigrams.xml changed. Commit the version attached to this run, then run the workflow again."
+          exit 1
+        fi
+    - name: Publish to the 'bigrams' branch
+      run: |
+        COMMIT=$(git -C aosp log -1 --format=%H)
+        git fetch -q origin bigrams
+        git worktree add -q data origin/bigrams
+        rm -rf data/v1
+        cp -r out/v1 data/
+        mkdir -p data/v1/sources
+        for src in $(awk '{print $2}' out/v1/SOURCES | sort -u); do
+          cp "aosp/wordlists/${src%.combined}.source" data/v1/sources/
+        done
+        cd data
+        git add -A
+        if git diff --cached --quiet; then
+          echo "No changes."
+          exit 0
+        fi
+        git -c user.name="github-actions[bot]" \
+          -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+          commit -q -m "Word pairs built from aosp-dictionaries ${COMMIT:0:7}"
+        git push origin HEAD:bigrams

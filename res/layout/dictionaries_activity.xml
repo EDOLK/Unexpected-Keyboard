@@ -4,6 +4,7 @@
     <Button style="@style/paragraph" android:text="@string/user_dictionary_title" android:onClick="launch_user_dictionary_activity" android:layout_width="wrap_content"/>
     <Button style="@style/paragraph" android:text="@string/user_bigrams_forget" android:onClick="forget_learned_words" android:layout_width="wrap_content"/>
     <TextView style="@style/paragraph" android:text="@string/bigrams_description"/>
+    <Button style="@style/paragraph" android:text="@string/bigrams_download" android:onClick="download_bigrams" android:layout_width="wrap_content"/>
     <Button style="@style/paragraph" android:text="@string/bigrams_import" android:onClick="import_bigrams" android:layout_width="wrap_content"/>
     <TextView style="@style/paragraph" android:text="@string/dictionaries_from_internet"/>
     <juloo.keyboard2.dict.DictionaryListView device_locales="true" style="@style/dictionary_list_view"/>

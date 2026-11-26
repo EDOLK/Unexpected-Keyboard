@@ -97,6 +97,7 @@ public class DictionaryListView extends LinearLayout
               try
               {
                 install_dictionary_from_internet(dict_name);
+                install_bigrams_from_internet(dict_name);
                 post_toast(getContext().getString(R.string.dictionaries_download_success));
               }
               catch (Exception e)
@@ -190,6 +191,17 @@ public class DictionaryListView extends LinearLayout
     checksum(dict_name, data);
     Cdict.of_bytes(data); // Check that the dictionary can load.
     _dictionaries.install(dict_name, data);
+  }
+
+  /** Word pairs are optional, a failure doesn't prevent using the
+      dictionary. */
+  void install_bigrams_from_internet(String dict_name)
+  {
+    if (_dictionaries.has_bigrams(dict_name)
+        || !BigramsDownload.available(getResources(), dict_name))
+      return;
+    try { BigramsDownload.install(getContext(), dict_name); }
+    catch (Exception e) { Logs.exn(dict_name, e); }
   }
 
   void checksum(String dict_name, byte[] data) throws Exception

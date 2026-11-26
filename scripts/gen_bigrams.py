@@ -2,7 +2,7 @@
 """Build a word-pair (bigram) file for Unexpected Keyboard from an AOSP word
 list (.combined or .combined.gz).
 
-Usage: gen_bigrams.py DICT_NAME INPUT.combined[.gz] OUTPUT.bigrams
+Usage: gen_bigrams.py [--max-per-word N] DICT_NAME INPUT.combined[.gz] OUTPUT.bigrams
 
 DICT_NAME is the name of the dictionary the file is meant for, eg. "en_US". It
 is stored in the file and used to install it next to the right dictionary.
@@ -25,8 +25,11 @@ big endian.
               u24 word index, u8 weight (1 to 255, higher is more likely)
                 Entries of a word are sorted by decreasing weight.
 
-AOSP word lists list up to 3 following words per word with "f=1" to "f=3",
-"3" being the most likely, which are used directly as weights.
+The "f=" field of the AOSP word lists is used directly as the weight. Some
+lists rank 3 following words per word with "f=1" to "f=3", others give
+frequencies up to 255; the keyboard normalizes weights per word. Only the
+--max-per-word (default 5) most likely following words are kept, which is
+more than the 3 the keyboard shows.
 """
 
 import gzip
@@ -41,7 +44,7 @@ LINE_RE = re.compile(r"^\s*(word|bigram)=([^,]*)(.*)$")
 FIELD_RE = re.compile(r",\s*([a-zA-Z_]+)=([^,]*)")
 
 
-def parse_combined(path):
+def parse_combined(path, max_per_word):
   """Return a dict: word -> list of (next word, weight)."""
   opener = gzip.open if path.endswith(".gz") else open
   pairs = {}
@@ -61,7 +64,7 @@ def parse_combined(path):
         pairs.setdefault(current, {})
         prev = pairs[current].get(value, 0)
         pairs[current][value] = max(prev, weight)
-  return {w: sorted(succ.items(), key=lambda kv: (-kv[1], kv[0]))
+  return {w: sorted(succ.items(), key=lambda kv: (-kv[1], kv[0]))[:max_per_word]
           for w, succ in pairs.items() if succ}
 
 
@@ -102,10 +105,15 @@ def write_bigrams(dict_name, pairs, out_path):
 
 
 def main():
-  if len(sys.argv) != 4:
+  args = sys.argv[1:]
+  max_per_word = 5
+  if len(args) == 5 and args[0] == "--max-per-word":
+    max_per_word = int(args[1])
+    args = args[2:]
+  if len(args) != 3:
     sys.exit(__doc__.split("\n\n")[1])
-  dict_name, inp, out = sys.argv[1:]
-  pairs = parse_combined(inp)
+  dict_name, inp, out = args
+  pairs = parse_combined(inp, max_per_word)
   n_words, n_succ = write_bigrams(dict_name, pairs, out)
   print("%s: %d words, %d pairs" % (out, n_words, n_succ))
 

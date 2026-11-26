@@ -70,7 +70,8 @@ public final class Bigrams
   /** Private */
 
   static final Charset UTF8 = Charset.forName("UTF-8");
-  static final int VERSION = 1;
+  /** Version of the format. */
+  public static final int VERSION = 1;
 
   final ByteBuffer _buf;
   final int _n_words;

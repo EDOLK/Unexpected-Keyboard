@@ -49,6 +49,37 @@ public class DictionariesActivity extends Activity
       .show();
   }
 
+  public void download_bigrams(View v)
+  {
+    new Thread() {
+      public void run()
+      {
+        String msg;
+        try
+        {
+          int n = BigramsDownload.install_missing(DictionariesActivity.this);
+          msg = (n == 0) ? getString(R.string.bigrams_none_to_download)
+            : getString(R.string.bigrams_downloaded, n);
+        }
+        catch (Exception e)
+        {
+          msg = getString(R.string.bigrams_download_failed, e.getMessage());
+        }
+        show_toast(msg);
+      }
+    }.start();
+  }
+
+  void show_toast(final String msg)
+  {
+    runOnUiThread(new Runnable() {
+      public void run()
+      {
+        Toast.makeText(DictionariesActivity.this, msg, Toast.LENGTH_LONG).show();
+      }
+    });
+  }
+
   public void import_bigrams(View v)
   {
     Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -67,14 +98,7 @@ public class DictionariesActivity extends Activity
     new Thread() {
       public void run()
       {
-        final String msg = install_bigrams(uri);
-        runOnUiThread(new Runnable() {
-          public void run()
-          {
-            Toast.makeText(DictionariesActivity.this, msg, Toast.LENGTH_LONG)
-              .show();
-          }
-        });
+        show_toast(install_bigrams(uri));
       }
     }.start();
   }
