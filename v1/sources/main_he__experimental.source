@@ -1,0 +1,2 @@
+source: created using [`wordlist.py`](scripts/wordlist.py) and [`wordlist_combined.py`](scripts/wordlist_combined.py), using a sentence list available at https://wortschatz.uni-leipzig.de/en/download/ and a word list available at https://github.com/hermitdave/FrequencyWords
+license: source lists under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
