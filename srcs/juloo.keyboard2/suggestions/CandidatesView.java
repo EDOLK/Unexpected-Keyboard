@@ -183,11 +183,15 @@ public class CandidatesView extends LinearLayout
     v.setOnClickListener(new View.OnClickListener()
         {
           @Override
-          public void onClick(View _v)
+          public void onClick(View v)
           {
             String it = _items[item_index];
             if (it != null)
-              Config.globalConfig().handler.suggestion_entered(it);
+            {
+              Config config = Config.globalConfig();
+              VibratorCompat.vibrate(v, config, VibratorCompat.Mode.TAP);
+              config.handler.suggestion_entered(it);
+            }
           }
         });
     // Long press adds the word being typed to the user dictionary or removes
@@ -201,8 +205,8 @@ public class CandidatesView extends LinearLayout
               return on_item_long_click(v, _items[item_index]);
             }
           });
-    // Vibration is done by [on_item_long_click] following the keyboard's
-    // settings.
+    // Vibration is done by [onClick] and [on_item_long_click] following the
+    // keyboard's settings.
     v.setHapticFeedbackEnabled(false);
     v.setVisibility(View.GONE);
     _item_views[item_index] = v;
