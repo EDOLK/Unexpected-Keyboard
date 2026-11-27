@@ -59,8 +59,94 @@ public class Eval
 
   static String[] new_query(Bigrams.Successors succ, String typed, int max)
   {
-    Candidates c = CdictEngine.query(dict, NO_USER, typos, succ, typed, max);
+    Candidates c = CdictEngine.query(dict, NO_USER, typos, succ, pairs,
+        typed, max);
     return Arrays.copyOf(c.words, c.count);
+  }
+
+  /** Used to split words with missing spaces. */
+  static CdictEngine.Pairs pairs = CdictEngine.NO_PAIRS;
+
+  /** Words typed without the spaces between them. Runs of 2 and 3 words are
+      taken from running text. The last word might be incomplete. Also
+      measures how often a split is wrongly suggested first for a single
+      word with a typo. */
+  static void split_eval(String[] files) throws IOException
+  {
+    List<String[]> runs = new ArrayList<String[]>();
+    for (String f : files)
+    {
+      String text = new String(Files.readAllBytes(Paths.get(f)), "UTF-8");
+      for (String sentence : text.split("[.!?;:\"(),]|\\R\\s*\\R"))
+      {
+        List<String> ws = new ArrayList<String>();
+        for (String w : sentence.split("[^A-Za-z']+"))
+        {
+          w = w.replaceAll("^'+|'+$", "");
+          if (!w.isEmpty()) ws.add(w);
+        }
+        for (int k = 2; k <= 3; k++)
+          for (int i = 0; i + k <= ws.size(); i += k)
+          {
+            boolean ok = true;
+            for (int j = i; j < i + k; j++) ok &= valid(ws.get(j));
+            if (ok) runs.add(ws.subList(i, i + k).toArray(new String[0]));
+          }
+      }
+    }
+    Collections.shuffle(runs, new Random(5));
+    for (int variant = 0; variant < 3; variant++)
+    {
+      int n = 0, top1 = 0, top3 = 0, n_dbg = 0;
+      for (String[] r : runs)
+      {
+        if (n >= 5000) break;
+        String joined = String.join("", r).replace("'", "");
+        if (variant == 1)
+        {
+          // The last word is not fully typed
+          String last = r[r.length - 1];
+          if (last.length() < 3) continue;
+          joined = joined.substring(0, joined.length() - 1);
+        }
+        if (variant == 2) joined = joined.toLowerCase();
+        if (joined.length() < WordSplitter.MIN_LENGTH || valid(joined)) continue;
+        n++;
+        String target = String.join(" ", r);
+        String[] res = new_query(joined, 3);
+        int rk = rank(res, target);
+        if (rk == 0) top1++; if (rk >= 0) top3++;
+        if (DEBUG && rk != 0 && n_dbg++ < 15)
+          System.out.println("  MISS " + joined + " -> " + target + ": " + Arrays.toString(res));
+      }
+      String name = (variant == 0) ? "missing spaces" :
+        (variant == 1) ? "missing spaces, last incomplete" :
+        "missing spaces, lowercase";
+      System.out.printf("%-34s n=%5d  top1 %5.1f%%           top3 %5.1f%%%n",
+          name, n, 100.*top1/n, 100.*top3/n);
+    }
+  }
+
+  /** How often a single word with a typo is replaced by a split on space. */
+  static void split_false_positives(List<String> targets)
+  {
+    Random rnd = new Random(42);
+    int n = 0, fp = 0, n_dbg = 0;
+    for (String t : targets)
+    {
+      if (t.length() < 3) continue;
+      String typed = noisy(t, rnd, 0.35);
+      if (typed.equals(t) || typed.length() < WordSplitter.MIN_LENGTH || valid(typed)) continue;
+      n++;
+      String[] res = new_query(typed, 3);
+      if (res.length > 0 && res[0].indexOf(' ') >= 0)
+      {
+        fp++;
+        if (DEBUG && n_dbg++ < 15)
+          System.out.println("  FALSE SPLIT " + typed + " (" + t + "): " + Arrays.toString(res));
+      }
+    }
+    System.out.printf("%-34s n=%5d  %5.2f%%%n", "typo replaced by a split", n, 100.*fp/n);
   }
 
   static Bigrams bigrams = null;
@@ -322,10 +408,13 @@ public class Eval
     for (int i = 0; i < 20000; i++)
       targets.add(uniq.get((int)Math.min(uniq.size() - 1,
               Math.floor(Math.exp(rnd.nextDouble() * Math.log(uniq.size()))) - 1)));
+    if (bigrams != null) pairs = CdictEngine.pairs_of(bigrams);
     typo_eval("touch noise sigma=0.35 (realistic)", targets, (w, r) -> noisy(w, r, 0.35));
     typo_eval("touch noise sigma=0.5 (sloppy)", targets, (w, r) -> noisy(w, r, 0.5));
     typo_eval("1 random letter (not spatial)", targets, Eval::random_sub);
     prefix_eval(uniq.subList(0, 1000));
+    split_false_positives(targets);
+    if (corpus != null) split_eval(corpus);
     // Timing
     String[] qs = new String[5000];
     Random r2 = new Random(7);

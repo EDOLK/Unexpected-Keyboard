@@ -54,8 +54,15 @@ public final class CdictEngine implements SuggestionEngine
   {
     // The current dictionary changes when the user switches dictionary.
     return query(_config.current_dictionary, _user_words, _typos,
-        successors(context), typed, max);
+        successors(context), _pairs, typed, max);
   }
+
+  /** Words following any word, used to choose between splits of a word
+      with missing spaces. */
+  final Pairs _pairs = new Pairs() {
+    public Bigrams.Successors successors(String prev)
+    { return _user_bigrams.merge(_config.current_bigrams, prev); }
+  };
 
   @Override
   public Candidates predict(String[] context, int max)
@@ -115,6 +122,8 @@ public final class CdictEngine implements SuggestionEngine
       the most likely pair from the word pairs file gets a bonus of about 1
       and learned pairs get up to 3. Tuned with [scripts/eval_suggestions]. */
   static final float BIGRAM_BONUS = 3.f;
+  /** Number of splits of a word with missing spaces that are suggested. */
+  static final int SPLITS = 2;
   /** Frequency of a following word that is not in the dictionary. */
   static final int UNKNOWN_SUCCESSOR_FREQ = 8;
 
@@ -130,10 +139,39 @@ public final class CdictEngine implements SuggestionEngine
         context[context.length - 1]);
   }
 
-  /** [dict] might be [null]. [succ] are the words following the previous
-      word, see [successors]. */
+  /** Words following a given word. */
+  public static interface Pairs
+  {
+    /** Never [null]. */
+    public Bigrams.Successors successors(String prev);
+  }
+
+  public static final Pairs NO_PAIRS = new Pairs() {
+    public Bigrams.Successors successors(String prev) { return Bigrams.NONE; }
+  };
+
+  /** Pairs from [bigrams] only, normalized like [UserBigrams.merge].
+      [bigrams] might be [null]. */
+  public static Pairs pairs_of(final Bigrams bigrams)
+  {
+    return new Pairs() {
+      public Bigrams.Successors successors(String prev)
+      { return CdictEngine.successors(bigrams, new String[]{ prev }); }
+    };
+  }
+
   public static Candidates query(Cdict dict, UserWords user_words,
       TypoModel typos, Bigrams.Successors succ, String typed, int max)
+  {
+    return query(dict, user_words, typos, succ, NO_PAIRS, typed, max);
+  }
+
+  /** [dict] might be [null]. [succ] are the words following the previous
+      word, see [successors]. [pairs] is used to split words with missing
+      spaces. */
+  public static Candidates query(Cdict dict, UserWords user_words,
+      TypoModel typos, Bigrams.Successors succ, Pairs pairs, String typed,
+      int max)
   {
     Candidates c = new Candidates(max);
     String word = apply_substitutions(typed);
@@ -177,6 +215,11 @@ public final class CdictEngine implements SuggestionEngine
         pool.add(score(typos, typed, w, freq_of(dict, w)));
       apply_bigram_bonus(pool, succ);
     }
+    // The typed word might be several words with missing spaces.
+    if (!found && dict != null)
+      for (WordSplitter.Split s : WordSplitter.split(
+            lexicon(dict, user_words, pairs), succ, typed, SPLITS))
+        pool.add(new Scored(s.text(), s.score));
     Collections.sort(pool, Scored.BEST_FIRST);
     for (Scored s : pool)
     {
@@ -211,6 +254,38 @@ public final class CdictEngine implements SuggestionEngine
           break;
         }
     }
+  }
+
+  /** Lookups for [WordSplitter]. */
+  static WordSplitter.Lexicon lexicon(final Cdict dict,
+      final UserWords user_words, final Pairs pairs)
+  {
+    return new WordSplitter.Lexicon() {
+      public WordSplitter.Word find(String w)
+      {
+        String u = user_words.find(w);
+        if (u != null)
+          return new WordSplitter.Word(u, USER_WORD_FREQ);
+        Cdict.Result r = dict.find(apply_substitutions(w));
+        if (!r.found)
+          return null;
+        return new WordSplitter.Word(dict.word(r.index), dict.freq(r.index));
+      }
+
+      public List<WordSplitter.Word> completions(String prefix, int max)
+      {
+        List<WordSplitter.Word> ws = new ArrayList<WordSplitter.Word>();
+        for (String u : user_words.prefix_matches(prefix, max))
+          ws.add(new WordSplitter.Word(u, USER_WORD_FREQ));
+        Cdict.Result r = dict.find(apply_substitutions(prefix));
+        for (int i : dict.suffixes(r, max))
+          ws.add(new WordSplitter.Word(dict.word(i), dict.freq(i)));
+        return ws;
+      }
+
+      public Bigrams.Successors successors(String prev)
+      { return pairs.successors(prev); }
+    };
   }
 
   static int freq_of(Cdict dict, String w)
