@@ -1,0 +1,13 @@
+dictionary=main:en_us,locale=en_US,description=Test,date=0,version=1
+ word=thank,f=100,flags=,originalFreq=100
+  bigram=goodness,f=1
+  bigram=God,f=2
+  bigram=you,f=3
+ word=I,f=196,flags=,originalFreq=152
+  bigram=mean,f=1
+  bigram=think,f=3
+ word=i,f=0,not_a_word=true
+  bigram=mean,f=1
+ word=café,f=50,flags=,originalFreq=50
+  bigram=crème,f=2
+ word=you,f=200,flags=,originalFreq=200

@@ -46,6 +46,8 @@ public final class Config
   public float slide_step_px;
   public boolean suggestions_enabled;
   public boolean suggestions_add_space;
+  /** Learn the words typed one after another to improve suggestions. */
+  public boolean learn_words;
   /** Show suggestions even in editors that request no suggestions. */
   public boolean suggestions_ignore_editor_request;
   // Let the system handle vibration when false.
@@ -92,6 +94,8 @@ public final class Config
   public DeviceLocales device_locales = null;
   public Cdict current_dictionary = null; // Might be 'null'.
   public Cdict emoji_dictionary = null; // Might be 'null'.
+  /** Word pairs for the current dictionary. Might be 'null'. */
+  public juloo.keyboard2.dict.Bigrams current_bigrams = null;
   public String current_dictionary_name = null; // Internal name for the current dictionary
   /** Whether to show the dictionary switching button in the candidates view. */
   public boolean should_show_dictionary_switch = false;
@@ -154,6 +158,7 @@ public final class Config
     number_row_symbols = number_row.equals("symbols");
     suggestions_enabled = _prefs.getBoolean("suggestions", true);
     suggestions_add_space = _prefs.getBoolean("suggestions_add_space", true);
+    learn_words = _prefs.getBoolean("learn_words", true);
     suggestions_ignore_editor_request =
       _prefs.getBoolean("suggestions_ignore_editor_request", false);
     // The baseline for the swipe distance correspond to approximately the

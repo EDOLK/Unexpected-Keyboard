@@ -28,10 +28,12 @@ import java.util.Set;
 import juloo.cdict.Cdict;
 import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.dict.DictionariesActivity;
+import juloo.keyboard2.dict.UserBigrams;
 import juloo.keyboard2.dict.UserDictionary;
 import juloo.keyboard2.dict.DictionarySwitcher;
 import juloo.keyboard2.prefs.LayoutsPreference;
 import juloo.keyboard2.suggestions.CandidatesView;
+import juloo.keyboard2.suggestions.CdictEngine;
 import juloo.keyboard2.suggestions.Suggestions;
 
 public class Keyboard2 extends InputMethodService
@@ -88,7 +90,7 @@ public class Keyboard2 extends InputMethodService
     // The active dictionary depends on the current layout.
     refresh_current_dictionary();
     refresh_candidates_view();
-    _keyboard_layout_view.setKeyboard(current_layout());
+    set_keyboard(current_layout());
   }
 
   void incrTextLayout(int delta)
@@ -100,7 +102,14 @@ public class Keyboard2 extends InputMethodService
   void setSpecialLayout(KeyboardData l)
   {
     _currentSpecialLayout = l;
-    _keyboard_layout_view.setKeyboard(l);
+    set_keyboard(l);
+  }
+
+  /** Show [kw] and let the suggestions know about it. */
+  void set_keyboard(KeyboardData kw)
+  {
+    _keyboard_layout_view.setKeyboard(kw);
+    _suggestions.set_layout(kw);
   }
 
   KeyboardData loadLayout(int layout_id)
@@ -139,8 +148,9 @@ public class Keyboard2 extends InputMethodService
         _foldStateTracker.isUnfolded(), _dictionaries);
     _config = Config.globalConfig();
     Receiver recvr = this.new Receiver();
-    _suggestions = new Suggestions(recvr, _config,
-        UserDictionary.instance(this));
+    UserDictionary user_dict = UserDictionary.instance(this);
+    _suggestions = new Suggestions(recvr, _config, user_dict,
+        new CdictEngine(_config, user_dict, UserBigrams.instance(this)));
     _keyeventhandler = new KeyEventHandler(_config, recvr, _suggestions);
     KeyValue.Stateful._handler = recvr;
     _config.handler = _keyeventhandler;
@@ -155,6 +165,7 @@ public class Keyboard2 extends InputMethodService
   @Override
   public void onDestroy() {
     super.onDestroy();
+    UserBigrams.instance(this).save();
 
     _foldStateTracker.close();
   }
@@ -268,7 +279,7 @@ public class Keyboard2 extends InputMethodService
         _config.suggestions_ignore_editor_request);
     refresh_config();
     _currentSpecialLayout = refresh_special_layout();
-    _keyboard_layout_view.setKeyboard(current_layout());
+    set_keyboard(current_layout());
     _keyeventhandler.started();
     setInputView(_keyboard_container_view);
     Logs.debug_startup_input_view(info, _config);
@@ -360,7 +371,7 @@ public class Keyboard2 extends InputMethodService
     refreshSubtypeImm();
     refresh_current_dictionary();
     refresh_candidates_view();
-    _keyboard_layout_view.setKeyboard(current_layout());
+    set_keyboard(current_layout());
   }
 
   @Override
@@ -376,6 +387,7 @@ public class Keyboard2 extends InputMethodService
   public void onFinishInputView(boolean finishingInput)
   {
     super.onFinishInputView(finishingInput);
+    UserBigrams.instance(this).save();
     _keyboard_layout_view.reset();
   }
 
@@ -383,7 +395,7 @@ public class Keyboard2 extends InputMethodService
   public void onSharedPreferenceChanged(SharedPreferences _prefs, String _key)
   {
     refresh_config();
-    _keyboard_layout_view.setKeyboard(current_layout());
+    set_keyboard(current_layout());
   }
 
   @Override
@@ -441,7 +453,7 @@ public class Keyboard2 extends InputMethodService
 
         case SWITCH_TEXT:
           _currentSpecialLayout = null;
-          _keyboard_layout_view.setKeyboard(current_layout());
+          set_keyboard(current_layout());
           break;
 
         case SWITCH_NUMERIC:

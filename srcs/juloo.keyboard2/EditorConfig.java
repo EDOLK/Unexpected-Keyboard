@@ -44,6 +44,10 @@ public final class EditorConfig
   /** Suggestions. */
   // Doesn't override [_config.suggestions_enabled].
   public boolean should_show_candidates_view;
+  /** Whether words typed in this editor can be learned. Disabled when the
+      editor requests it (eg. incognito mode) and in fields like URLs, emails
+      and passwords. Doesn't override [_config.learn_words]. */
+  public boolean personalized_learning;
 
   public EditorConfig() {}
 
@@ -104,7 +108,8 @@ public final class EditorConfig
     /* CurrentlyTypedWord */
     if (VERSION.SDK_INT >= 30)
     {
-      initial_text_before_cursor = info.getInitialTextBeforeCursor(20, 0);
+      initial_text_before_cursor = info.getInitialTextBeforeCursor(
+          CurrentlyTypedWord.TEXT_BEFORE_LENGTH, 0);
       initial_text_after_cursor = info.getInitialTextAfterCursor(20, 0);
     }
     initial_sel_start = info.initialSelStart;
@@ -112,6 +117,8 @@ public final class EditorConfig
     /* Suggestions */
     should_show_candidates_view =
       CandidatesView.should_show(info, ignore_no_suggestions);
+    personalized_learning = auto_space_allowed
+      && (info.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) == 0;
   }
 
   String actionLabel_of_imeAction(int action, Resources res)

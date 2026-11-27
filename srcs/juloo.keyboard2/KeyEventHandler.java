@@ -167,13 +167,19 @@ public final class KeyEventHandler
   @Override
   public void currently_typed_word(String word)
   {
-    _suggestions.currently_typed_word(word);
+    _suggestions.currently_typed_word(_typedword.context(), word);
+  }
+
+  @Override
+  public void word_finished(String[] context, String word)
+  {
+    _suggestions.word_finished(context, word);
   }
 
   public void dictionary_changed()
   {
     // Refresh the suggestions immediately after dictionary changed.
-    _suggestions.currently_typed_word(_typedword.get());
+    _suggestions.currently_typed_word(_typedword.context(), _typedword.get());
   }
 
   /** Update [_mods] to be consistent with the [mods], sending key events if
@@ -787,7 +793,10 @@ public final class KeyEventHandler
     // a second one.
     if (_last_action == LastAction.AUTO_SPACE)
       return;
+    // Next word predictions are shown when less than 2 letters are typed,
+    // they must not be entered on space.
     if (_config.space_bar_auto_complete && _suggestions.count > 0
+        && _typedword.get().length() >= 2
         && !_typedword.is_selection_not_empty()
         && _typedword.cursor_relative() == 0
         && _last_action == LastAction.OTHER)

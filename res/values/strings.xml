@@ -42,6 +42,8 @@
     <string name="pref_suggestions_ignore_editor_request_summary">Show suggestions even in apps that ask not to, like the Google search bar. Never in password fields.</string>
     <string name="pref_suggestions_add_space_title">Automatically add a space</string>
     <string name="pref_suggestions_add_space_summary">Add a space character after the selected word</string>
+    <string name="pref_learn_words_title">Learn from what you type</string>
+    <string name="pref_learn_words_summary">Remember which words you type one after another to suggest them next time. Stays on this device. Nothing is learned in password, email and URL fields or in incognito mode.</string>
     <string name="pref_category_typing">Typing</string>
     <string name="pref_swipe_dist_title">Swiping distance</string>
     <string name="pref_swipe_dist_summary">Distance of characters in the corners of the keys (%s)</string>
@@ -181,6 +183,18 @@
     <string name="user_dictionary_remove">Remove %s</string>
     <string name="user_dictionary_empty">No words yet</string>
     <string name="user_dictionary_no_spaces">A word can\'t contain spaces</string>
+    <string name="bigrams_download">Download word pairs</string>
+    <string name="bigrams_import">Import word pairs</string>
+    <string name="bigrams_description">Word pairs improve suggestions using the previous word and suggest the next word after a space. They are downloaded with the dictionary when available. Use the button below for dictionaries installed earlier, or import a word pairs file.</string>
+    <string name="bigrams_downloaded">Word pairs installed for %d dictionaries</string>
+    <string name="bigrams_none_to_download">No word pairs to download for the installed dictionaries</string>
+    <string name="bigrams_download_failed">Download failed (%s)</string>
+    <string name="bigrams_installed">Word pairs installed for %s</string>
+    <string name="bigrams_dict_not_installed">Word pairs installed for %s. Install that dictionary to use them.</string>
+    <string name="bigrams_import_failed">Not a valid word pairs file (%s)</string>
+    <string name="user_bigrams_forget">Forget learned words</string>
+    <string name="user_bigrams_forget_confirm">Forget the %d word pairs learned from what you typed?</string>
+    <string name="user_bigrams_forgotten">Learned words forgotten</string>
     <string name="pref_physical_keyboard_behavior">When a physical keyboard is connected</string>
     <string name="pref_physical_keyboard_behavior_hide">Hide everything</string>
     <string name="pref_physical_keyboard_behavior_show">Show everything</string>

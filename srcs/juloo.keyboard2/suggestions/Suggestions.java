@@ -1,24 +1,23 @@
 package juloo.keyboard2.suggestions;
 
-import java.util.Arrays;
-import java.util.List;
 import juloo.cdict.Cdict;
-import juloo.keyboard2.dict.Dictionaries;
 import juloo.keyboard2.dict.UserDictionary;
 import juloo.keyboard2.Config;
-import juloo.keyboard2.ComposeKey;
-import juloo.keyboard2.ComposeKeyData;
+import juloo.keyboard2.KeyboardData;
 
 /** Keep track of the word being typed and provide suggestions for
-    [CandidatesView]. */
+    [CandidatesView]. Finding and ranking words is done by a
+    [SuggestionEngine]. */
 public final class Suggestions
 {
   Callback _callback;
   Config _config;
   UserDictionary _user_dict;
+  SuggestionEngine _engine;
   boolean _enabled;
-  /** The word passed to the last call to [currently_typed_word]. */
+  /** The arguments to the last call to [currently_typed_word]. */
   String _last_typed_word = "";
+  String[] _last_context = SuggestionEngine.NO_CONTEXT;
 
   /** Current suggestions. The best suggestion is at index [0]. */
   public String[] suggestions = new String[MAX_COUNT];
@@ -33,11 +32,13 @@ public final class Suggestions
   /** Number of suggestions in [suggestions]. */
   public static final int MAX_COUNT = 3;
 
-  public Suggestions(Callback c, Config conf, UserDictionary user_dict)
+  public Suggestions(Callback c, Config conf, UserDictionary user_dict,
+      SuggestionEngine engine)
   {
     _callback = c;
     _config = conf;
     _user_dict = user_dict;
+    _engine = engine;
   }
 
   public void started()
@@ -46,16 +47,40 @@ public final class Suggestions
     clear();
   }
 
-  public void currently_typed_word(String word)
+  /** [context] contains the words preceding [word], the most recent last. */
+  public void currently_typed_word(String[] context, String word)
   {
     if (!_enabled)
       return;
     _last_typed_word = word;
-    if (word.length() < 2)
+    _last_context = context;
+    if (word.length() >= 2)
+      query_suggestions(context, word);
+    else if (context.length == 0)
       clear();
+    else if (word.length() == 1)
+      // The context makes suggestions useful after the first letter. The
+      // typed letter is not offered as an unknown word.
+      set_predictions(_engine.query(context, word, MAX_COUNT), word);
     else
-      query_suggestions(word);
+      // Nothing typed yet: suggest the next word.
+      set_predictions(_engine.predict(context, MAX_COUNT), word);
     _callback.set_suggestions(this);
+  }
+
+  /** [word] was typed after the words in [context]. It is learned if
+      allowed in the settings and in the current editor. */
+  public void word_finished(String[] context, String word)
+  {
+    if (_enabled && _config.learn_words
+        && _config.editor_config.personalized_learning)
+      _engine.learn(context, word);
+  }
+
+  /** The layout shown to the user changed. */
+  public void set_layout(KeyboardData kw)
+  {
+    _engine.set_layout(kw);
   }
 
   /** Result of [toggle_user_word]. */
@@ -79,7 +104,7 @@ public final class Suggestions
         r = UserWordChange.REMOVED;
     }
     if (r != UserWordChange.NONE)
-      currently_typed_word(_last_typed_word);
+      currently_typed_word(_last_context, _last_typed_word);
     return r;
   }
 
@@ -92,68 +117,44 @@ public final class Suggestions
     unknown_word = null;
   }
 
-  int query_suggestions(String word)
+  int query_suggestions(String[] context, String word)
+  {
+    Candidates c = _engine.query(context, word, MAX_COUNT);
+    set_candidates(c, word);
+    // Word with substitutions applied
+    emoji_suggestion = query_emoji(CdictEngine.apply_substitutions(word));
+    return count;
+  }
+
+  /** Fill [suggestions] from the engine's result. [typed] is the word being
+      typed. */
+  void set_candidates(Candidates c, String typed)
   {
     clear();
-    Cdict dict = _config.current_dictionary;
-    String typed = word;
-    boolean first_char_upper = Character.isUpperCase(word.charAt(0));
-    word = apply_substitutions(word);
-    // User words come first, they are more likely to be relevant.
-    String user_exact = _user_dict.find(typed);
-    add_suggestion(user_exact);
-    boolean found = (user_exact != null);
-    Cdict.Result r = null;
-    if (dict != null)
-    {
-      r = dict.find(word);
-      if (r.found)
-      {
-        found = true;
-        add_suggestion(dict.word(r.index));
-      }
-    }
-    for (String w : _user_dict.prefix_matches(typed, MAX_COUNT))
-      add_suggestion(w);
-    if (dict != null)
-    {
-      int[] suffixes = dict.suffixes(r, MAX_COUNT);
-      // Disable distance search for small words
-      int[] dist = (word.length() < 3 || count + 1 >= MAX_COUNT) ? NO_RESULTS :
-        dict.distance(word, 1, MAX_COUNT);
-      for (int j = 0; j < MAX_COUNT && count < MAX_COUNT; j++)
-      {
-        if (suffixes.length > j)
-          add_suggestion(dict.word(suffixes[j]));
-        if (dist.length > j)
-          add_suggestion(dict.word(dist[j]));
-      }
-    }
-    if (first_char_upper)
+    for (int i = 0; i < c.count && count < MAX_COUNT; i++)
+      suggestions[count++] = c.words[i];
+    if (Character.isUpperCase(typed.charAt(0)))
       capitalize_results(suggestions, count);
     // Show the typed word when it is unknown so that it can be added to the
     // user dictionary. It takes the last slot.
-    if (!found)
+    if (!c.typed_word_valid)
     {
       unknown_word = typed;
       if (count < MAX_COUNT)
         count++;
       suggestions[count - 1] = typed;
     }
-    emoji_suggestion = query_emoji(word); // word with substitutions applied
-    return count;
   }
 
-  /** Append a suggestion, unless it is [null], already present or there is no
-      more room. */
-  void add_suggestion(String w)
+  /** Fill [suggestions] without offering [prefix] as an unknown word.
+      [prefix] is what's typed of the current word, possibly empty. */
+  void set_predictions(Candidates c, String prefix)
   {
-    if (w == null || count >= MAX_COUNT)
-      return;
-    for (int i = 0; i < count; i++)
-      if (suggestions[i].equalsIgnoreCase(w))
-        return;
-    suggestions[count++] = w;
+    clear();
+    for (int i = 0; i < c.count && count < MAX_COUNT; i++)
+      suggestions[count++] = c.words[i];
+    if (prefix.length() > 0 && Character.isUpperCase(prefix.charAt(0)))
+      capitalize_results(suggestions, count);
   }
 
   static void capitalize_results(String[] s, int count)
@@ -162,6 +163,7 @@ public final class Suggestions
       s[i] = s[i].substring(0, 1).toUpperCase() + s[i].substring(1);
   }
 
+  /** [word] must have substitutions applied. */
   String query_emoji(String word)
   {
     Cdict dict = _config.emoji_dictionary;
@@ -176,24 +178,6 @@ public final class Suggestions
       return dict.word(s[0]);
     return null;
   }
-
-  /** Apply the same substitutions that were used when building the
-      dictionaries to find word aliases. This catches missing diacritics for
-      example. */
-  String apply_substitutions(String w)
-  {
-    StringBuilder b = new StringBuilder(w);
-    int len = w.length();
-    for (int i = 0; i < len; i++)
-    {
-      char r =
-        ComposeKey.transform_char(ComposeKeyData.substitutions, b.charAt(i));
-      if (r != 0) b.setCharAt(i, r);
-    }
-    return b.toString();
-  }
-
-  static final int[] NO_RESULTS = new int[0];
 
   public static interface Callback
   {
